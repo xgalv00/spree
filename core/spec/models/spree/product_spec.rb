@@ -194,15 +194,6 @@ describe Spree::Product, type: :model do
       end
     end
 
-    # Regression test for #8906
-    context 'tags' do
-      let(:tag_list) { %w[tag1 tag2] }
-
-      it "doesn't raise an error when adding tags to a product" do
-        expect { product.update(tag_list: tag_list) }.not_to raise_error
-      end
-    end
-
     # Regression test for #3737
     context 'has stock items' do
       it 'can retrieve stock items' do
@@ -483,17 +474,14 @@ describe Spree::Product, type: :model do
 
     before do
       images = [
-        Spree::Image.create(params),
-        Spree::Image.create(params.merge(alt: 'position 1', position: 1)),
-        Spree::Image.create(params.merge(viewable_type: 'ThirdParty::Extension', alt: 'position 1', position: 2))
+        Spree::Image.new(params),
+        Spree::Image.new(params.merge(alt: 'position 1', position: 1)),
+        Spree::Image.new(params.merge(viewable_type: 'ThirdParty::Extension', alt: 'position 1', position: 2))
       ]
-      # fix for ActiveStorage
-      unless Rails.application.config.use_paperclip
-        images.each_with_index do |image, index|
-          image.attachment.attach(io: file, filename: "thinking-cat-#{index + 1}.jpg", content_type: 'image/jpeg')
-          image.save!
-          file.rewind # we need to do this to avoid `ActiveStorage::IntegrityError`
-        end
+      images.each_with_index do |image, index|
+        image.attachment.attach(io: file, filename: "thinking-cat-#{index + 1}.jpg", content_type: 'image/jpeg')
+        image.save!
+        file.rewind # we need to do this to avoid `ActiveStorage::IntegrityError`
       end
     end
 
@@ -585,20 +573,6 @@ describe Spree::Product, type: :model do
 
     it 'is true' do
       expect(product_discontinued.discontinued?).to be(true)
-    end
-  end
-
-  context 'acts_as_taggable' do
-    let(:product) { create(:product) }
-
-    it 'adds tags' do
-      product.tag_list.add('awesome')
-      expect(product.tag_list).to include('awesome')
-    end
-
-    it 'removes tags' do
-      product.tag_list.remove('awesome')
-      expect(product.tag_list).not_to include('awesome')
     end
   end
 

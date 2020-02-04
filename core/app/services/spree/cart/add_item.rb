@@ -6,7 +6,7 @@ module Spree
       def call(order:, variant:, quantity: nil, options: {})
         ApplicationRecord.transaction do
           run :add_to_line_item
-          run Spree::Cart::Recalculate
+          run Spree::Dependencies.cart_recalculate_service.constantize
         end
       end
 
@@ -16,7 +16,7 @@ module Spree
         options ||= {}
         quantity ||= 1
 
-        line_item = Spree::LineItems::FindByVariant.new.execute(order: order, variant: variant, options: options)
+        line_item = Spree::Dependencies.line_item_by_variant_finder.constantize.new.execute(order: order, variant: variant, options: options)
 
         line_item_created = line_item.nil?
         if line_item.nil?
@@ -35,7 +35,9 @@ module Spree
 
         return failure(line_item) unless line_item.save
 
-        ::Spree::TaxRate.adjust(order, [line_item.reload]) if line_item_created
+        line_item.reload.update_price
+
+        ::Spree::TaxRate.adjust(order, [line_item]) if line_item_created
         success(order: order, line_item: line_item, line_item_created: line_item_created, options: options)
       end
     end

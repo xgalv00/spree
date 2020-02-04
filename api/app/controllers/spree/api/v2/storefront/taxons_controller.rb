@@ -15,45 +15,24 @@ module Spree
 
           private
 
-          def serialize_collection(collection)
-            dependencies[:collection_serializer].new(
-              collection,
-              collection_options(collection)
-            ).serializable_hash
+          def collection_serializer
+            Spree::Api::Dependencies.storefront_taxon_serializer.constantize
           end
 
-          def serialize_resource(resource)
-            dependencies[:resource_serializer].new(
-              resource,
-              include: resource_includes,
-              fields: sparse_fields
-            ).serializable_hash
+          def resource_serializer
+            Spree::Api::Dependencies.storefront_taxon_serializer.constantize
           end
 
-          def dependencies
-            {
-              collection_finder: Spree::Taxons::Find,
-              collection_paginator: Spree::Shared::Paginate,
-              collection_serializer: Spree::V2::Storefront::TaxonSerializer,
-              resource_serializer: Spree::V2::Storefront::TaxonSerializer
-            }
-          end
-
-          def collection_options(collection)
-            {
-              links: collection_links(collection),
-              meta: collection_meta(collection),
-              include: resource_includes,
-              fields: sparse_fields
-            }
+          def collection_finder
+            Spree::Api::Dependencies.storefront_taxon_finder.constantize
           end
 
           def paginated_collection
-            dependencies[:collection_paginator].new(collection, params).call
+            collection_paginator.new(collection, params).call
           end
 
           def collection
-            dependencies[:collection_finder].new(scope, params).call
+            collection_finder.new(scope: scope, params: params).execute
           end
 
           def resource
@@ -61,7 +40,7 @@ module Spree
           end
 
           def scope
-            Spree::Taxon.accessible_by(current_ability, :read).includes(scope_includes)
+            Spree::Taxon.accessible_by(current_ability, :show).includes(scope_includes)
           end
 
           def scope_includes

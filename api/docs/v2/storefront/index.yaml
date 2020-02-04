@@ -12,7 +12,15 @@ info:
       intefaces either in JavaScript frameworks or native mobile libraries.
     </p>
     <p>
-      Please read our introduction to the API v2 [insert link here]
+      Please read our <a href="https://guides.spreecommerce.org/api/v2/">
+        introduction to the API v2
+      </a>
+    </p>
+    <p>
+      Download our
+      <a href="https://github.com/spree/spree-storefront-api-v2-js-sdk">
+        official JavaScript & TypeScript SDK
+      </a>
     </p>
     <p>
       <a href="https://raw.githubusercontent.com/spree/spree/master/api/docs/v2/storefront/index.yaml" target="_blank" rel="noopener">
@@ -20,6 +28,142 @@ info:
       </a>
     </p>
 paths:
+  '/account':
+    get:
+      description: >-
+        Returns current user information
+      tags:
+        - Account
+      operationId: 'Account Information'
+      parameters:
+        - $ref: '#/components/parameters/AccountIncludeParam'
+        - $ref: '#/components/parameters/SparseFieldsParam'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+      security:
+        - bearerAuth: []
+
+  '/account/credit_cards':
+    get:
+      description: >-
+        Returns a list of Credit Cards for the signed in User
+      tags:
+        - Account
+      operationId: 'Credit Cards list'
+      responses:
+        '200':
+          description: Listing user credit cards.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/CreditCardList'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: filter[payment_method_id]
+          schema:
+            type: integer
+          example: 2
+          description: Filter based on payment method ID
+        - $ref: '#/components/parameters/CreditCardIncludeParam'
+        - $ref: '#/components/parameters/SparseFieldsParam'
+  '/account/credit_cards/default':
+    get:
+      description: >-
+        Return the User's default Credit Card
+      tags:
+        - Account
+      operationId: 'Default Credit Card'
+      responses:
+        '200':
+          description: Listing user default credit card.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/CreditCard'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+      parameters:
+        - $ref: '#/components/parameters/CreditCardIncludeParam'
+        - $ref: '#/components/parameters/SparseFieldsParam'
+      security:
+        - bearerAuth: []
+  '/account/orders':
+    get:
+      description: Returns Orders placed by the User. Only completed ones.
+      tags:
+        - Account
+      operationId: 'Completed Orders'
+      responses:
+        '200':
+          description: Listing user completed orders.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/CartList'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+      parameters:
+        - $ref: '#/components/parameters/CartIncludeParam'
+        - $ref: '#/components/parameters/SparseFieldsParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      security:
+        - bearerAuth: []
+  '/account/orders/{number}':
+    get:
+      description: >-
+        Return the User's completed Order
+      tags:
+        - Account
+      operationId: 'Completed User Order'
+      responses:
+        '200':
+          description: Listing user completed order.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+      parameters:
+        - $ref: '#/components/parameters/OrderParam'
+        - $ref: '#/components/parameters/CartIncludeParam'
+        - $ref: '#/components/parameters/SparseFieldsParam'
+      security:
+        - bearerAuth: []
+  '/order_status/{number}':
+    get:
+      description: >-
+        Returns placed Order
+      tags:
+        - Order Status
+      operationId: 'Order Status'
+      responses:
+        '200':
+          description: Requested Order information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+      parameters:
+        - $ref: '#/components/parameters/OrderParam'
+        - $ref: '#/components/parameters/CartIncludeParam'
+        - $ref: '#/components/parameters/SparseFieldsParam'
+      security:
+        - orderToken: []
   '/cart':
     post:
       description: >-
@@ -31,11 +175,12 @@ paths:
         </p>
       tags:
         - Cart
+      operationId: 'Create Cart'
       responses:
         '201':
           description: Cart was successfully created
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
       parameters:
@@ -45,11 +190,12 @@ paths:
       description: Returns contents of the cart
       tags:
         - Cart
+      operationId: 'Get Cart'
       responses:
         '200':
           description: Correct cart was returned
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '404':
@@ -76,11 +222,12 @@ paths:
         </blockquote>
       tags:
         - Cart
+      operationId: 'Add Item'
       responses:
         '200':
           description: Item was added to the Cart successfully
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '404':
@@ -94,7 +241,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          application/vnd.api+json:
             schema:
               type: object
               properties:
@@ -118,17 +265,18 @@ paths:
       description: Sets the quantity of a given line item. It has to be a positive integer greater than 0.
       tags:
         - Cart
+      operationId: 'Set Quantity'
       responses:
         '200':
           description: New quantity has been successfully set for a requested Line Item
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '422':
           description: Stock quantity is not sufficient for this request to be fulfielled
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Error'
       security:
@@ -140,7 +288,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          application/vnd.api+json:
             schema:
               type: object
               properties:
@@ -157,6 +305,7 @@ paths:
       description: Removes Line Item from Cart
       tags:
         - Cart
+      operationId: 'Remove Line Item'
       parameters:
         - $ref: '#/components/parameters/LineItemId'
         - $ref: '#/components/parameters/CartIncludeParam'
@@ -165,7 +314,7 @@ paths:
         '200':
           description: Requested Line Item has been removed from the Cart
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '404':
@@ -179,11 +328,12 @@ paths:
       description: Empties the Cart
       tags:
         - Cart
+      operationId: 'Empty Cart'
       responses:
         '200':
           description: Cart has been successfully emptied
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '404':
@@ -200,17 +350,18 @@ paths:
       description: Applies a coupon code to the Cart
       tags:
         - Cart
+      operationId: 'Apply Coupon Code'
       responses:
         '200':
-          description: Cuopon code was applied successfully
+          description: Coupon code was applied successfully
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '422':
           description: Coupon code couldn't be applied
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Error'
       security:
@@ -222,7 +373,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          application/vnd.api+json:
             schema:
               type: object
               properties:
@@ -232,14 +383,15 @@ paths:
 
   '/cart/remove_coupon_code/{coupon_code}':
     delete:
-      description: Removes a coupon code from the Cart
+      description: Removes a coupon code from the Cart. If no `coupon_code` parameter is passed will remove all applied coupon codes.
       tags:
         - Cart
+      operationId: 'Remove Coupon Code'
       parameters:
         - name: coupon_code
           in: path
-          required: true
-          description: Coupon code applied to Order
+          required: false
+          description: Selected Coupon code for removal
           schema:
             type: string
           example: 'DISCOUNT10'
@@ -249,15 +401,44 @@ paths:
         '200':
           description: Coupon code was removed successfully
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '422':
           description: Coupon code couldn't be removed
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Error'
+      security:
+        - orderToken: []
+        - bearerAuth: []
+
+  '/cart/estimate_shipping_rates':
+    get:
+      description:  Returns a list of Estimated Shipping Rates for Cart
+      tags:
+        - Cart
+      operationId: 'Estimate Shipping Rates'
+      parameters:
+        - name: country_iso
+          in: query
+          description: >-
+            Country ISO or ISO3 symbol to get estimations for this destination,
+            by default we'll try to reuse Cart shipping address or the default Country for the current Store
+          schema:
+            type: string
+          example: 'USA'
+        - $ref: '#/components/parameters/SparseFieldsParam'
+      responses:
+        '200':
+          description: Returns a list of estimated Shipping Rates for Cart
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EstimateShippingRatesList'
+        '404':
+          $ref: '#/components/responses/404NotFound'
       security:
         - orderToken: []
         - bearerAuth: []
@@ -277,28 +458,24 @@ paths:
           order: {
             email: 'john@snow.org',
             bill_address_attributes: {
-              {
-                firstname: 'John',
-                lastname: 'Snow',
-                address1: '7735 Old Georgetown Road',
-                city: 'Bethesda',
-                phone: '3014445002',
-                zipcode: '20814',
-                state_name: 'MD',
-                country_id: 232
-              }
+              firstname: 'John',
+              lastname: 'Snow',
+              address1: '7735 Old Georgetown Road',
+              city: 'Bethesda',
+              phone: '3014445002',
+              zipcode: '20814',
+              state_name: 'MD',
+              country_iso: 'US'
             },
             ship_address_attributes: {
-              {
-                firstname: 'John',
-                lastname: 'Snow',
-                address1: '7735 Old Georgetown Road',
-                city: 'Bethesda',
-                phone: '3014445002',
-                zipcode: '20814',
-                state_name: 'MD',
-                country_id: 232
-              }
+              firstname: 'John',
+              lastname: 'Snow',
+              address1: '7735 Old Georgetown Road',
+              city: 'Bethesda',
+              phone: '3014445002',
+              zipcode: '20814',
+              state_name: 'MD',
+              country_iso: 'US'
             }
           }
         </pre>
@@ -320,9 +497,12 @@ paths:
         <br />
         <pre>
           order: {
-            shipments_attributes: {
-              '0' => { selected_shipping_rate_id: 1, id: 1}
-            }
+            shipments_attributes: [
+              {
+                id: 1,
+                selected_shipping_rate_id: 1
+              }
+            ]
           }
         </pre>
         <br />
@@ -344,7 +524,7 @@ paths:
               ]
             },
             payment_source: {
-              '1' => {
+              1: {
                 number: '4111111111111111',
                 month: '01',
                 year: '2022',
@@ -369,17 +549,18 @@ paths:
         </p>
       tags:
         - Checkout
+      operationId: 'Update Checkout'
       responses:
         '200':
           description: Checkout was updated
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '422':
           description: Checkout couldn't be updated
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
@@ -392,7 +573,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          application/vnd.api+json:
             schema:
               type: object
               properties:
@@ -425,17 +606,18 @@ paths:
       description: Goes to the next Checkout step
       tags:
         - Checkout
+      operationId: 'Checkout Next'
       responses:
         '200':
           description: Checkout transitioned to the next step
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '422':
           description: Checkout couldn't transition to the next step
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
@@ -452,17 +634,18 @@ paths:
       description: Advances Checkout to the furthest Checkout step validation allows, until the Complete step
       tags:
         - Checkout
+      operationId: 'Advance Checkout'
       responses:
         '200':
           description: Checkout was advanced to the furthest step
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '422':
           description: Checkout couldn't transition to the next step
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
@@ -479,17 +662,18 @@ paths:
       description: Completes the Checkout
       tags:
         - Checkout
+      operationId: 'Complete Checkout'
       responses:
         '200':
           description: Checkout was completed
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '422':
           description: Checkout couldn't be completed
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
@@ -498,24 +682,25 @@ paths:
         - orderToken: []
         - bearerAuth: []
       parameters:
-      - $ref: '#/components/parameters/CartIncludeParam'
+        - $ref: '#/components/parameters/CartIncludeParam'
 
   '/checkout/add_store_credit':
     post:
-      description: Adds StoreCredit payments if a user has any
+      description: Adds Store Credit payments if a user has any
       tags:
         - Checkout
+      operationId: 'Add Store Credit'
       responses:
         '200':
-          description: StoreCredit payment created
+          description: Store Credit payment created
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '422':
-          description: StoreCredit couldn't be created
+          description: Store Credit couldn't be created
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
@@ -527,8 +712,8 @@ paths:
         - in: query
           name: amount
           description: >-
-            Amount of StoreCredit to use.
-            As much as possible StoreCredit will be applied if no amount is passed.
+            Amount of Store Credit to use.
+            As much as possible Store Credit will be applied if no amount is passed.
           schema:
             type: string
           example: 100.0
@@ -536,20 +721,21 @@ paths:
         - $ref: '#/components/parameters/SparseFieldsParam'
   '/checkout/remove_store_credit':
     post:
-      description: Remove StoreCredit payments if any applied
+      description: Remove Store Credit payments if any applied
       tags:
         - Checkout
+      operationId: 'Remove Store Credit'
       responses:
         '200':
-          description: StoreCredit payment removed
+          description: Store Credit payment removed
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Cart'
         '422':
-          description: StoreCredit payments weren't removed
+          description: Store Credit payments weren't removed
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
@@ -567,11 +753,12 @@ paths:
         Returns a list of available Payment Methods
       tags:
         - Checkout
+      operationId: 'Payment Methods'
       responses:
         '200':
           description: Returns a list of available Payment Methods
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/PaymentMethodsList'
         '404':
@@ -589,11 +776,12 @@ paths:
         in stock and will be send out instantly and some needs to be backordered.
       tags:
         - Checkout
+      operationId: 'Shipping Rates'
       responses:
         '200':
           description: Returns a list of available Shipping Rates for Checkout
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/ShippingRatesList'
         '404':
@@ -608,8 +796,10 @@ paths:
         Returns a list of Products
       tags:
         - Products
+      operationId: 'Products List'
       parameters:
         - $ref: '#/components/parameters/FilterByIds'
+        - $ref: '#/components/parameters/FilterBySKUs'
         - in: query
           name: filter[price]
           schema:
@@ -637,6 +827,18 @@ paths:
             Find Prodcuts with Variants that have the specified option (eg. color, size)
             and value (eg. red, XS)
         - in: query
+          name: 'filter[show_deleted]'
+          schema:
+            type: boolean
+          example: true
+          description: Returns also deleted products
+        - in: query
+          name: 'filter[show_discontinued]'
+          schema:
+            type: boolean
+          example: true
+          description: Returns also discontinued products
+        - in: query
           name: sort
           schema:
             type: string
@@ -657,7 +859,7 @@ paths:
         '200':
           description: Returns a list of Products
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/ProductsList'
   '/products/{id}':
@@ -670,6 +872,7 @@ paths:
         permalink lookup before an ID lookup.
       tags:
         - Products
+      operationId: 'Show Product'
       parameters:
         - $ref: '#/components/parameters/IdOrPermalink'
         - $ref: '#/components/parameters/ProductIncludeParam'
@@ -678,7 +881,7 @@ paths:
         '200':
           description: Returns the requested Product
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Product'
         '404':
@@ -690,6 +893,7 @@ paths:
         Returns a list of Taxons. You can filter out taxons by...
       tags:
         - Taxons
+      operationId: 'Taxons List'
       parameters:
         - $ref: '#/components/parameters/FilterByIds'
         - $ref: '#/components/parameters/FilterByName'
@@ -719,7 +923,7 @@ paths:
         '200':
           description: Returns a list of Taxons
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/TaxonsList'
 
@@ -733,6 +937,7 @@ paths:
         permalink lookup before an ID lookup.
       tags:
         - Taxons
+      operationId: 'Show Taxon'
       parameters:
         - $ref: '#/components/parameters/IdOrPermalink'
         - $ref: '#/components/parameters/TaxonIncludeParam'
@@ -741,7 +946,7 @@ paths:
         '200':
           description: Returns the reqested Taxon
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Taxon'
         '404':
@@ -753,11 +958,12 @@ paths:
         Returns a list of all Countries
       tags:
         - Countries
+      operationId: 'Countries List'
       responses:
         '200':
           description: Returns a list of all Countries
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/CountriesList'
 
@@ -771,6 +977,7 @@ paths:
         iso lookup before an iso3 lookup.
       tags:
         - Countries
+      operationId: 'Show Country'
       parameters:
         - $ref: '#/components/parameters/IsoOrIso3'
         - $ref: '#/components/parameters/CountryIncludeParam'
@@ -779,7 +986,7 @@ paths:
         '200':
           description: Returns the requested Country
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Country'
         '404':
@@ -792,6 +999,7 @@ paths:
         By default this will be the US.
       tags:
         - Countries
+      operationId: 'Default Country'
       parameters:
         - $ref: '#/components/parameters/CountryIncludeParam'
         - $ref: '#/components/parameters/SparseFieldsParam'
@@ -799,31 +1007,9 @@ paths:
         '200':
           description: Returns the default Country
           content:
-            application/json:
+            application/vnd.api+json:
               schema:
                 $ref: '#/components/schemas/Country'
-
-  '/account':
-    get:
-      description: >-
-        Returns current user information
-      tags:
-        - Account
-      operationId: show
-      parameters:
-        - $ref: '#/components/parameters/AccountIncludeParam'
-        - $ref: '#/components/parameters/SparseFieldsParam'
-      responses:
-        '200':
-          description: ok
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Account'
-        '404':
-          $ref: '#/components/responses/404NotFound'
-      security:
-        - bearerAuth: []
 
 components:
   securitySchemes:
@@ -852,9 +1038,9 @@ components:
   schemas:
     Error:
       required:
-        - message
+        - error
       properties:
-        message:
+        error:
           type: string
     ListLinks:
       properties:
@@ -898,7 +1084,6 @@ components:
         type:
           type: string
           default: 'address'
-          example: 'address'
         attributes:
           type: object
           properties:
@@ -945,150 +1130,12 @@ components:
       properties:
         data:
           type: object
+          $ref: '#/components/schemas/CartAttributesWithRelationships'
           required:
             - id
             - type
             - attributes
             - relationships
-          properties:
-            id:
-              type: string
-              example: '1'
-            type:
-              type: string
-              example: 'cart'
-              default: 'cart'
-            attributes:
-              type: object
-              properties:
-                number:
-                  type: string
-                  example: 'R123456789'
-                email:
-                  type: string
-                  example: 'spree@example.com'
-                item_total:
-                  type: string
-                  example: '19.99'
-                display_item_total:
-                  type: string
-                  example: '$19.99'
-                total:
-                  type: string
-                  example: '29.99'
-                display_total:
-                  type: string
-                  example: '$29.99'
-                ship_total:
-                  type: string
-                  example: '0.0'
-                display_ship_total:
-                  type: string
-                  example: '$19.99'
-                adjustment_total:
-                  type: string
-                  example: '10.0'
-                display_adjustment_total:
-                  type: string
-                  example: '$10.00'
-                promo_total:
-                  type: string
-                  example: '-10.0'
-                display_promo_total:
-                  type: string
-                  example: '-$10.00'
-                created_at:
-                  $ref: '#/components/schemas/Timestamp'
-                updated_at:
-                  $ref: '#/components/schemas/Timestamp'
-                included_tax_total:
-                  type: string
-                  example: '5.00'
-                additional_tax_total:
-                  type: string
-                  example: '5.0'
-                display_additional_tax_total:
-                  type: string
-                  example: '$5.00'
-                display_included_tax_total:
-                  type: string
-                  example: '$5.00'
-                tax_total:
-                  type: string
-                  example: '10.0'
-                display_tax_total:
-                  type: string
-                  example: '$10.00'
-                item_count:
-                  type: number
-                  example: 2
-                  description: 'Total quantity number of all items added to the Cart'
-                special_instructions:
-                  type: string
-                  example: 'Please wrap it as a gift'
-                  description: 'Message added by the Customer'
-                currency:
-                  type: string
-                  example: 'USD'
-                state:
-                  type: string
-                  example: 'address'
-                  description: 'State of the Cart in the Checkout flow'
-                token:
-                  type: string
-                  example: abcdef123456
-                  description: >-
-                    Used for authorizing any action for an order within Spree’s
-                    API
-            relationships:
-              type: object
-              properties:
-                line_items:
-                  type: object
-                  properties:
-                    data:
-                      type: array
-                      items:
-                        $ref: '#/components/schemas/Relation'
-                promotions:
-                  type: object
-                  properties:
-                    data:
-                      type: array
-                      items:
-                        $ref: '#/components/schemas/Relation'
-                variants:
-                  type: object
-                  properties:
-                    data:
-                      type: array
-                      items:
-                        $ref: '#/components/schemas/Relation'
-                user:
-                  type: object
-                  properties:
-                    data:
-                      $ref: '#/components/schemas/Relation'
-                billing_address:
-                  type: object
-                  properties:
-                    data:
-                      $ref: '#/components/schemas/Relation'
-                shipping_address:
-                  type: object
-                  properties:
-                    data:
-                      $ref: '#/components/schemas/Relation'
-                payments:
-                  type: object
-                  properties:
-                    data:
-                      $ref: '#/components/schemas/Relation'
-                shipments:
-                  type: object
-                  properties:
-                    data:
-                      $ref: '#/components/schemas/Relation'
         included:
           type: array
           items:
@@ -1100,6 +1147,241 @@ components:
               - $ref: '#/components/schemas/User'
               - $ref: '#/components/schemas/Address'
               - $ref: '#/components/schemas/ShipmentAttributesWithoutRelationsips'
+    CartList:
+      required:
+        - data
+        - included
+      properties:
+        data:
+          required:
+            - id
+            - type
+            - attributes
+            - relationships
+          type: array
+          items:
+            $ref: '#/components/schemas/CartAttributesWithRelationships'
+        included:
+          type: array
+          items:
+            type: object
+            oneOf:
+              - $ref: '#/components/schemas/VariantAttributesAndRelationships'
+              - $ref: '#/components/schemas/LineItem'
+              - $ref: '#/components/schemas/Promotion'
+              - $ref: '#/components/schemas/User'
+              - $ref: '#/components/schemas/Address'
+              - $ref: '#/components/schemas/ShipmentAttributesWithoutRelationsips'
+    CartAttributesWithRelationships:
+      properties:
+        id:
+          type: string
+          example: '1'
+        type:
+          type: string
+          example: 'cart'
+        attributes:
+          $ref: '#/components/schemas/CartAttributes'
+        relationships:
+          $ref: '#/components/schemas/CartRelationships'
+    CartRelationships:
+      type: object
+      properties:
+        line_items:
+          type: object
+          description: ''
+          properties:
+            data:
+              $ref: '#/components/schemas/Relation'
+        promotions:
+          type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Relation'
+        variants:
+          type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Relation'
+        user:
+          type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Relation'
+        billing_address:
+          type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Relation'
+        shipping_address:
+          type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Relation'
+        payments:
+          type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Relation'
+        shipments:
+          type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Relation'
+    CartAttributes:
+      type: object
+      properties:
+        number:
+          type: string
+          example: 'R123456789'
+        email:
+          type: string
+          example: 'spree@example.com'
+        item_total:
+          type: string
+          example: '19.99'
+        display_item_total:
+          type: string
+          example: '$19.99'
+        total:
+          type: string
+          example: '29.99'
+        display_total:
+          type: string
+          example: '$29.99'
+        ship_total:
+          type: string
+          example: '0.0'
+        display_ship_total:
+          type: string
+          example: '$19.99'
+        adjustment_total:
+          type: string
+          example: '10.0'
+        display_adjustment_total:
+          type: string
+          example: '$10.00'
+        promo_total:
+          type: string
+          example: '-10.0'
+        display_promo_total:
+          type: string
+          example: '-$10.00'
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+        included_tax_total:
+          type: string
+          example: '5.00'
+        additional_tax_total:
+          type: string
+          example: '5.0'
+        display_additional_tax_total:
+          type: string
+          example: '$5.00'
+        display_included_tax_total:
+          type: string
+          example: '$5.00'
+        tax_total:
+          type: string
+          example: '10.0'
+        display_tax_total:
+          type: string
+          example: '$10.00'
+        item_count:
+          type: number
+          example: 2
+          description: 'Total quantity number of all items added to the Cart'
+        special_instructions:
+          type: string
+          example: 'Please wrap it as a gift'
+          description: 'Message added by the Customer'
+        currency:
+          type: string
+          example: 'USD'
+        state:
+          type: string
+          example: 'address'
+          description: 'State of the Cart in the Checkout flow'
+        token:
+          type: string
+          example: abcdef123456
+          description: >-
+            Used for authorizing any action for an order within Spree’s
+            API
+    CreditCardList:
+      required:
+        - included
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreditCardAttributesWithRelationships'
+        included:
+          type: array
+          items:
+            type: object
+            oneOf:
+              - $ref: '#/components/schemas/PaymentMethod'
+    CreditCard:
+      required:
+        - data
+        - included
+      properties:
+        data:
+          type: object
+          $ref: '#/components/schemas/CreditCardAttributesWithRelationships'
+        included:
+          type: array
+          items:
+            type: object
+            oneOf:
+              - $ref: '#/components/schemas/PaymentMethod'
+    CreditCardAttributes:
+      properties:
+        cc_type:
+          type: string
+          example: 'visa'
+        last_digits:
+          type: string
+          example: '1232'
+          description: 'Last 4 digits of CC number'
+        month:
+          type: integer
+          example: 10
+          description: 'Expiration date month'
+        year:
+          type: integer
+          example: 2019
+          description: 'Expiration date year'
+        name:
+          type: string
+          example: 'John Doe'
+          description: 'Card holder name'
+        default:
+          type: boolean
+          example: true
+          description: 'Defines if this is the default CC for a signed in user'
+    CreditCardAttributesWithRelationships:
+      properties:
+        id:
+          type: string
+          example: '1'
+        type:
+          type: string
+          example: 'credit_card'
+        attributes:
+          type: object
+          $ref: '#/components/schemas/CreditCardAttributes'
+        relationships:
+          type: object
+          properties:
+            payment_method:
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/Relation'
     Image:
       required:
         - data
@@ -1113,7 +1395,6 @@ components:
             type:
               type: string
               default: 'image'
-              example: 'image'
             attributes:
               type: object
               properties:
@@ -1148,7 +1429,6 @@ components:
         type:
           type: string
           default: 'user'
-          example: 'user'
         attributes:
           type: object
           properties:
@@ -1163,7 +1443,6 @@ components:
         type:
           type: string
           default: 'line_item'
-          example: 'line_item'
         attributes:
           type: object
           properties:
@@ -1216,6 +1495,12 @@ components:
             display_additional_tax_total:
               type: string
               example: '$5.00'
+            discounted_amount:
+              type: string
+              example: '125.0'
+            display_discounted_amount:
+              type: string
+              example: '$125.00'
             promo_total:
               type: string
               example: '-5.0'
@@ -1229,11 +1514,12 @@ components:
               type: string
               example: '$0.00'
         relationships:
-          variant:
-            type: object
-            properties:
-              data:
-                $ref: '#/components/schemas/Relation'
+          properties:
+            variant:
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/Relation'
     Promotion:
       properties:
         id:
@@ -1241,7 +1527,6 @@ components:
           example: '1'
         type:
           type: string
-          example: 'promotion'
           default: 'promotion'
         attributes:
           type: object
@@ -1394,7 +1679,6 @@ components:
         type:
           type: string
           default: 'product'
-          example: 'product'
         attributes:
           $ref: '#/components/schemas/ProductAttributes'
         relationships:
@@ -1519,7 +1803,6 @@ components:
         type:
           type: string
           default: 'taxon'
-          example: 'taxon'
         attributes:
           $ref: '#/components/schemas/TaxonAttributes'
         relationships:
@@ -1559,7 +1842,6 @@ components:
             type:
               type: string
               default: 'taxon_image'
-              example: 'taxon_image'
             attributes:
               type: object
               properties:
@@ -1581,7 +1863,6 @@ components:
         type:
           type: string
           default: 'taxonomy'
-          example: 'taxonomy'
         attributes:
           $ref: '#/components/schemas/TaxonomyAttributes'
     TaxonomyAttributes:
@@ -1606,7 +1887,6 @@ components:
             type:
               type: string
               default: 'option_type'
-              example: 'option_type'
             attributes:
               type: object
               properties:
@@ -1632,7 +1912,6 @@ components:
             type:
               type: string
               default: 'option_value'
-              example: 'option_value'
             attributes:
               type: object
               properties:
@@ -1666,7 +1945,6 @@ components:
             type:
               type: string
               default: 'property'
-              example: 'property'
             attributes:
               type: object
               properties:
@@ -1689,7 +1967,6 @@ components:
             type:
               type: string
               default: 'product_property'
-              example: 'product_property'
             attributes:
               type: object
               properties:
@@ -1809,7 +2086,6 @@ components:
         type:
           type: string
           default: 'variant'
-          example: 'variant'
         attributes:
           $ref: '#/components/schemas/VariantAttributes'
         relationships:
@@ -1875,7 +2151,6 @@ components:
         type:
           type: string
           default: 'country'
-          example: 'country'
         attributes:
           $ref: '#/components/schemas/CountryAttributes'
         relationships:
@@ -1905,7 +2180,6 @@ components:
         type:
           type: string
           default: 'payment_method'
-          example: 'payment_method'
         attributes:
           type: object
           properties:
@@ -1926,7 +2200,6 @@ components:
         type:
           type: string
           default: 'shipment'
-          example: 'shipment'
         attributes:
           $ref: '#/components/schemas/ShipmentAttributes'
         relationships:
@@ -1939,7 +2212,6 @@ components:
         type:
           type: string
           default: 'shipment'
-          example: 'shipment'
         attributes:
           $ref: '#/components/schemas/ShipmentAttributes'
         relationships:
@@ -1956,7 +2228,7 @@ components:
         number:
           type: string
           example: 'H121354'
-          descriptipon: 'Unique Shipment identifier'
+          description: 'Unique Shipment identifier'
         free:
           type: boolean
           example: true
@@ -1999,6 +2271,14 @@ components:
           items:
             oneOf:
               - $ref: '#/components/schemas/ShippingRate'
+    EstimateShippingRatesList:
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShippingRate'
     ShippingRate:
       properties:
         id:
@@ -2007,7 +2287,6 @@ components:
         type:
           type: string
           default: 'shipping_rate'
-          example: 'shipping_rate'
         attributes:
           type: object
           properties:
@@ -2093,7 +2372,6 @@ components:
         type:
           type: string
           default: 'user'
-          example: 'user'
         attributes:
           $ref: '#/components/schemas/AccountAttributes'
         relationships:
@@ -2121,9 +2399,13 @@ components:
         state_name:
           type: string
           description: 'State/region/province 2 letter abbrevation'
-        country_id:
-          type: number
-          description: 'ID number of Country in the database'
+        country_iso:
+          type: string
+          description: >-
+            Country ISO (2-chars) or ISO3 (3-chars) code, list of codes:
+            <a href="https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes" target="_blank" rel="noopener">
+              https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes
+            </a>
       example:
         firstname: 'John'
         lastname: 'Snow'
@@ -2133,9 +2415,30 @@ components:
         phone: '3014445002'
         zipcode: '20814'
         state_name: 'MD'
-        country_id: 232
+        country_iso: 'US'
 
   parameters:
+    CreditCardIncludeParam:
+      name: include
+      in: query
+      required: false
+      schema:
+        type: string
+      example: 'payment_method'
+      description: >-
+        <p>Specify what related resources (relationships) you would like to receive in the response body.</p>
+          <p>You can also fetch relationships of relationships.</p>
+          <p>
+            Format:
+            <ul>
+              <li>payment_method</li>
+            </ul>
+          <p>
+          More information:
+          <a href="https://jsonapi.org/format/#fetching-includes" target="_blank" rel="noopener">
+              https://jsonapi.org/format/#fetching-includes
+          </a>
+        </p>
     IdOrPermalink:
       name: id
       in: path
@@ -2169,7 +2472,15 @@ components:
       description: Number of requested records per page when paginating collection
       schema:
         type: integer
-      example: 10
+      example:
+    OrderParam:
+      name: number
+      in: path
+      required: true
+      description: Number of Order
+      schema:
+        type: string
+      example: 'R653163382'
     CartIncludeParam:
       name: include
       in: query
@@ -2265,6 +2576,13 @@ components:
         type: string
       example: 1,2,3
       description: Fetch only resources with corresponding IDs
+    FilterBySKUs:
+      in: query
+      name: filter[skus]
+      schema:
+        type: string
+      example: SKU-123,SKU-345
+      description: Fetch only resources with corresponding SKUs
     FilterByName:
       in: query
       name: filter[name]
@@ -2296,6 +2614,20 @@ components:
     404NotFound:
       description: Resource not found
       content:
-        application/json:
+        application/vnd.api+json:
           schema:
-            $ref: '#/components/schemas/Error'
+            properties:
+              error:
+                type: string
+                example: 'The resource you were looking for could not be found.'
+                default: 'The resource you were looking for could not be found.'
+    403Forbidden:
+      description: You are not authorized to access this page.
+      content:
+        application/vnd.api+json:
+          schema:
+            properties:
+              error:
+                type: string
+                example: 'You are not authorized to access this page.'
+                default: 'You are not authorized to access this page.'

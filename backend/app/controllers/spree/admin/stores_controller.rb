@@ -2,6 +2,7 @@ module Spree
   module Admin
     class StoresController < Spree::Admin::BaseController
       before_action :load_store, only: [:new, :edit, :update]
+      before_action :set_default_currency, only: :new
 
       def index
         @stores = Spree::Store.all
@@ -14,7 +15,7 @@ module Spree
           flash[:success] = flash_message_for(@store, :successfully_created)
           redirect_to admin_stores_path
         else
-          flash[:error] = "#{Spree.t('store.errors.unable_to_create')}: #{@store.errors.full_messages.join(', ')}"
+          flash[:error] = "#{Spree.t('store_errors.unable_to_create')}: #{@store.errors.full_messages.join(', ')}"
           render :new
         end
       end
@@ -26,7 +27,7 @@ module Spree
           flash[:success] = flash_message_for(@store, :successfully_updated)
           redirect_to admin_stores_path
         else
-          flash[:error] = "#{Spree.t('store.errors.unable_to_update')}: #{@store.errors.full_messages.join(', ')}"
+          flash[:error] = "#{Spree.t('store_errors.unable_to_update')}: #{@store.errors.full_messages.join(', ')}"
           render :edit
         end
       end
@@ -41,7 +42,7 @@ module Spree
             format.js { render_js_for_destroy }
           end
         else
-          render plain: "#{Spree.t('store.errors.unable_to_delete')}: #{@store.errors.full_messages.join(', ')}", status: :unprocessable_entity
+          render plain: "#{Spree.t('store_errors.unable_to_delete')}: #{@store.errors.full_messages.join(', ')}", status: :unprocessable_entity
         end
       end
 
@@ -73,6 +74,10 @@ module Spree
 
       def load_store
         @store = Spree::Store.find_by(id: params[:id]) || Spree::Store.new
+      end
+
+      def set_default_currency
+        @store.default_currency = Spree::Config[:currency]
       end
     end
   end

@@ -3,12 +3,13 @@ module Spree
     module V2
       module Storefront
         class CheckoutController < ::Spree::Api::V2::BaseController
+          include Spree::Api::V2::Storefront::OrderConcern
           before_action :ensure_order
 
           def next
             spree_authorize! :update, spree_current_order, order_token
 
-            result = dependencies[:next_state_handler].call(order: spree_current_order)
+            result = next_service.call(order: spree_current_order)
 
             render_order(result)
           end
@@ -16,7 +17,7 @@ module Spree
           def advance
             spree_authorize! :update, spree_current_order, order_token
 
-            result = dependencies[:advance_handler].call(order: spree_current_order)
+            result = advance_service.call(order: spree_current_order)
 
             render_order(result)
           end
@@ -24,7 +25,7 @@ module Spree
           def complete
             spree_authorize! :update, spree_current_order, order_token
 
-            result = dependencies[:completer].call(order: spree_current_order)
+            result = complete_service.call(order: spree_current_order)
 
             render_order(result)
           end
@@ -32,10 +33,11 @@ module Spree
           def update
             spree_authorize! :update, spree_current_order, order_token
 
-            result = dependencies[:updater].call(
+            result = update_service.call(
               order: spree_current_order,
               params: params,
-              permitted_attributes: dependencies[:permitted_attributes],
+              # defined in https://github.com/spree/spree/blob/master/core/lib/spree/core/controller_helpers/strong_parameters.rb#L19
+              permitted_attributes: permitted_checkout_attributes,
               request_env: request.headers.env
             )
 
@@ -45,7 +47,7 @@ module Spree
           def add_store_credit
             spree_authorize! :update, spree_current_order, order_token
 
-            result = dependencies[:add_store_credit_handler].call(
+            result = add_store_credit_service.call(
               order: spree_current_order,
               amount: params[:amount].try(:to_f)
             )
@@ -56,12 +58,12 @@ module Spree
           def remove_store_credit
             spree_authorize! :update, spree_current_order, order_token
 
-            result = dependencies[:remove_store_credit_handler].call(order: spree_current_order)
+            result = remove_store_credit_service.call(order: spree_current_order)
             render_order(result)
           end
 
           def shipping_rates
-            result = dependencies[:shipping_rates_getter].call(order: spree_current_order)
+            result = shipping_rates_service.call(order: spree_current_order)
 
             render_serialized_payload { serialize_shipping_rates(result.value) }
           end
@@ -72,45 +74,52 @@ module Spree
 
           private
 
-          def ensure_order
-            raise ActiveRecord::RecordNotFound if spree_current_order.nil?
+          def resource_serializer
+            Spree::Api::Dependencies.storefront_cart_serializer.constantize
           end
 
-          def dependencies
-            {
-              next_state_handler: Spree::Checkout::Next,
-              advance_handler: Spree::Checkout::Advance,
-              add_store_credit_handler: Spree::Checkout::AddStoreCredit,
-              remove_store_credit_handler: Spree::Checkout::RemoveStoreCredit,
-              completer: Spree::Checkout::Complete,
-              updater: Spree::Checkout::Update,
-              cart_serializer: Spree::V2::Storefront::CartSerializer,
-              payment_methods_serializer: Spree::V2::Storefront::PaymentMethodSerializer,
-              shipping_rates_getter: Spree::Checkout::GetShippingRates,
-              shipping_rates_serializer: Spree::V2::Storefront::ShipmentSerializer,
-              # defined in https://github.com/spree/spree/blob/master/core/lib/spree/core/controller_helpers/strong_parameters.rb#L19
-              permitted_attributes: permitted_checkout_attributes
-            }
+          def next_service
+            Spree::Api::Dependencies.storefront_checkout_next_service.constantize
           end
 
-          def render_order(result)
-            if result.success?
-              render_serialized_payload { serialize_order(result.value) }
-            else
-              render_error_payload(result.error)
-            end
+          def advance_service
+            Spree::Api::Dependencies.storefront_checkout_advance_service.constantize
           end
 
-          def serialize_order(order)
-            dependencies[:cart_serializer].new(order.reload, include: resource_includes, fields: sparse_fields).serializable_hash
+          def add_store_credit_service
+            Spree::Api::Dependencies.storefront_checkout_add_store_credit_service.constantize
+          end
+
+          def remove_store_credit_service
+            Spree::Api::Dependencies.storefront_checkout_remove_store_credit_service.constantize
+          end
+
+          def complete_service
+            Spree::Api::Dependencies.storefront_checkout_complete_service.constantize
+          end
+
+          def update_service
+            Spree::Api::Dependencies.storefront_checkout_update_service.constantize
+          end
+
+          def payment_methods_serializer
+            Spree::Api::Dependencies.storefront_payment_method_serializer.constantize
+          end
+
+          def shipping_rates_service
+            Spree::Api::Dependencies.storefront_checkout_get_shipping_rates_service.constantize
+          end
+
+          def shipping_rates_serializer
+            Spree::Api::Dependencies.storefront_shipment_serializer.constantize
           end
 
           def serialize_payment_methods(payment_methods)
-            dependencies[:payment_methods_serializer].new(payment_methods).serializable_hash
+            payment_methods_serializer.new(payment_methods).serializable_hash
           end
 
           def serialize_shipping_rates(shipments)
-            dependencies[:shipping_rates_serializer].new(
+            shipping_rates_serializer.new(
               shipments,
               include: [:shipping_rates],
               params: { show_rates: true }

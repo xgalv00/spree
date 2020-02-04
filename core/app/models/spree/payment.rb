@@ -1,3 +1,5 @@
+require_dependency 'spree/payment/processing'
+
 module Spree
   class Payment < Spree::Base
     include Spree::Core::NumberGenerator.new(prefix: 'P', letters: true, length: 7)
@@ -23,7 +25,7 @@ module Spree
     has_many :refunds, inverse_of: :payment
 
     validates :payment_method, presence: true
-    validates :number, uniqueness: true
+    validates :number, uniqueness: { case_sensitive: true }
     validates :source, presence: true, if: -> { payment_method&.source_required? }
 
     before_validation :validate_source
@@ -227,7 +229,7 @@ module Spree
           state: 'pending',
           capture_on_dispatch: true
         ).authorize!
-        update_attributes(amount: captured_amount)
+        update(amount: captured_amount)
       end
     end
 
@@ -252,7 +254,7 @@ module Spree
       return unless store_credit? && source.is_a?(Spree::StoreCredit)
 
       # creates the store credit event
-      source.update_attributes!(action: Spree::StoreCredit::ELIGIBLE_ACTION,
+      source.update!(action: Spree::StoreCredit::ELIGIBLE_ACTION,
                                 action_amount: amount,
                                 action_authorization_code: response_code)
     end

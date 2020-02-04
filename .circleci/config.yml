@@ -18,12 +18,12 @@ run_tests: &run_tests
     - checkout
     - restore_cache:
         keys:
-          - spree-bundle-v3-{{ checksum ".ruby-version" }}-{{ .Branch }}
-          - spree-bundle-v3-{{ checksum ".ruby-version" }}
+          - spree-bundle-v4-{{ checksum ".ruby-version" }}-{{ .Branch }}
+          - spree-bundle-v4-{{ checksum ".ruby-version" }}
     - run:
         name: Ensure Bundle Install
         command: |
-          bundle check --path=~/spree/vendor/bundle || bundle install
+          bundle install --path=~/spree/vendor/bundle
           ./build-ci.rb install
     - run:
         name: Run rspec in parallel
@@ -44,15 +44,15 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - spree-bundle-v3-{{ checksum ".ruby-version" }}-{{ .Branch }}
-            - spree-bundle-v3-{{ checksum ".ruby-version" }}
+            - spree-bundle-v4-{{ checksum ".ruby-version" }}-{{ .Branch }}
+            - spree-bundle-v4-{{ checksum ".ruby-version" }}
       - run:
           name: Bundle Install
           command: |
-            bundle check --path=~/spree/vendor/bundle || bundle install
+            bundle install --path=~/spree/vendor/bundle
             ./build-ci.rb install
       - save_cache:
-          key: spree-bundle-v3-{{ checksum ".ruby-version" }}-{{ .Branch }}
+          key: spree-bundle-v4-{{ checksum ".ruby-version" }}-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
           paths:
             - ~/spree/vendor/bundle
 
@@ -68,12 +68,6 @@ jobs:
       - image: circleci/postgres:10-alpine
         environment:
           POSTGRES_USER: postgres
-
-  run_tests_postgres_paperclip:
-      <<: *run_tests_postgres
-      environment:
-        <<: *postgres_environment
-        SPREE_USE_PAPERCLIP: true
 
   run_tests_mysql:
     <<: *run_tests
@@ -92,12 +86,12 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - spree-bundle-v3-{{ checksum ".ruby-version" }}-{{ .Branch }}
-            - spree-bundle-v3-{{ checksum ".ruby-version" }}
+            - spree-bundle-v4-{{ checksum ".ruby-version" }}-{{ .Branch }}
+            - spree-bundle-v4-{{ checksum ".ruby-version" }}
       - run:
           name: Ensure Bundle Install
           command: |
-            bundle check --path=~/spree/vendor/bundle || bundle install
+            bundle install --path=~/spree/vendor/bundle
             ./build-ci.rb install
       - run:
           name: Run rspec in parallel
@@ -146,6 +140,36 @@ jobs:
             ./tmp/cc-test-reporter sum-coverage tmp/codeclimate.*.json -p 4 -o tmp/codeclimate.total.json
             ./tmp/cc-test-reporter upload-coverage -i tmp/codeclimate.total.json
 
+  update_staging_repository:
+    docker:
+      - image: circleci/ruby:2.6.3
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - 54:50:5e:4e:80:6d:2e:26:43:c6:99:bd:39:b2:71:dc
+      - run: mkdir -p ~/.ssh
+      - run: ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+      - run: ssh-add -D
+      - run: ssh-add ~/.ssh/id_rsa_54505e4e806d2e2643c699bd39b271dc
+      - run: git clone -b master git@github.com:spark-solutions/spree-designs.git
+      - run: gem install bundler -v 1.17.3
+      - run:
+          command: bundle update spree
+          working_directory: ~/project/spree-designs
+      - run:
+          command: |
+            git config user.name 'AutoDeploy'
+            git config user.email 'autodeploy@sparksolutions.co'
+          working_directory: ~/project/spree-designs
+      - run:
+          command: |
+            git add -A
+            git commit -m "Auto-commit v#${CIRCLE_BUILD_NUM}"
+          working_directory: ~/project/spree-designs
+      - run:
+          command: git push origin master
+          working_directory: ~/project/spree-designs
+
 workflows:
   version: 2
   main:
@@ -157,9 +181,12 @@ workflows:
       - run_tests_mysql:
           requires:
             - bundle_install
-      - run_tests_postgres_paperclip:
-          requires:
-            - run_tests_postgres
       - send_test_coverage:
           requires:
             - run_tests_mysql
+  update_staging_repository:
+    jobs:
+      - update_staging_repository:
+          filters:
+            branches:
+              only: master

@@ -26,7 +26,7 @@ module Spree
           params[:product][:option_type_ids] = params[:product][:option_type_ids].split(',')
         end
         invoke_callbacks(:update, :before)
-        if @object.update_attributes(permitted_resource_params)
+        if @object.update(permitted_resource_params)
           invoke_callbacks(:update, :after)
           flash[:success] = flash_message_for(@object, :successfully_updated)
           respond_with(@object) do |format|
@@ -81,7 +81,7 @@ module Spree
       def stock
         @variants = @product.variants.includes(*variant_stock_includes)
         @variants = [@product.master] if @variants.empty?
-        @stock_locations = StockLocation.accessible_by(current_ability, :read)
+        @stock_locations = StockLocation.accessible_by(current_ability)
         if @stock_locations.empty?
           flash[:error] = Spree.t(:stock_management_requires_a_stock_location)
           redirect_to admin_stock_locations_path

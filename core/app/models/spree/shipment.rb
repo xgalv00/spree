@@ -26,7 +26,7 @@ module Spree
     before_validation :set_cost_zero_when_nil
 
     validates :stock_location, presence: true
-    validates :number, uniqueness: true
+    validates :number, uniqueness: { case_sensitive: true }
 
     attr_accessor :special_instructions
 
@@ -269,7 +269,7 @@ module Spree
     end
 
     def shipping_method
-      selected_shipping_rate.try(:shipping_method) || shipping_rates.first.try(:shipping_method)
+      selected_shipping_rate&.shipping_method || shipping_rates.first&.shipping_method
     end
 
     def tax_category
@@ -292,7 +292,7 @@ module Spree
     end
 
     def tracking_url
-      @tracking_url ||= shipping_method.build_tracking_url(tracking)
+      @tracking_url ||= shipping_method&.build_tracking_url(tracking)
     end
 
     def update_amounts
@@ -307,7 +307,7 @@ module Spree
 
     # Update Shipment and make sure Order states follow the shipment changes
     def update_attributes_and_order(params = {})
-      if update_attributes params
+      if update params
         if params.key? :selected_shipping_rate_id
           # Changing the selected Shipping Rate won't update the cost (for now)
           # so we persist the Shipment#cost before calculating order shipment

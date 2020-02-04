@@ -1,4 +1,7 @@
-require 'spree/order/checkout'
+require_dependency 'spree/order/checkout'
+require_dependency 'spree/order/currency_updater'
+require_dependency 'spree/order/payments'
+require_dependency 'spree/order/store_credit'
 
 module Spree
   class Order < Spree::Base
@@ -9,6 +12,7 @@ module Spree
     include Spree::Order::CurrencyUpdater
     include Spree::Order::Payments
     include Spree::Order::StoreCredit
+    include Spree::Order::AddressBook
     include Spree::Core::NumberGenerator.new(prefix: 'R')
     include Spree::Core::TokenGenerator
 
@@ -21,30 +25,6 @@ module Spree
 
     alias display_ship_total display_shipment_total
     alias_attribute :ship_total, :shipment_total
-
-    def guest_token
-      ActiveSupport::Deprecation.warn(<<-DEPRECATION, caller)
-        Order#guest_token is deprecated and will be removed in Spree 4.0. Please use Order#token instead
-      DEPRECATION
-
-      token
-    end
-
-    def guest_token?
-      ActiveSupport::Deprecation.warn(<<-DEPRECATION, caller)
-        Order#guest_token? is deprecated and will be removed in Spree 4.0. Please use Order#token? instead
-      DEPRECATION
-
-      token?
-    end
-
-    def guest_token=(value)
-      ActiveSupport::Deprecation.warn(<<-DEPRECATION, caller)
-        Order#guest_token= is deprecated and will be removed in Spree 4.0. Please use Order#token= instead
-      DEPRECATION
-
-      self.token = value
-    end
 
     MONEY_THRESHOLD  = 100_000_000
     MONEY_VALIDATION = {
@@ -71,7 +51,7 @@ module Spree
       go_to_state :payment, if: ->(order) { order.payment? || order.payment_required? }
       go_to_state :confirm, if: ->(order) { order.confirmation_required? }
       go_to_state :complete
-      remove_transition from: :delivery, to: :confirm
+      remove_transition from: :delivery, to: :confirm, unless: ->(order) { order.confirmation_required? }
     end
 
     self.whitelisted_ransackable_associations = %w[shipments user promotions bill_address ship_address line_items store]
@@ -93,25 +73,25 @@ module Spree
     end
 
     belongs_to :bill_address, foreign_key: :bill_address_id, class_name: 'Spree::Address',
-                              optional: true
+                              optional: true, dependent: :destroy
     alias_attribute :billing_address, :bill_address
 
     belongs_to :ship_address, foreign_key: :ship_address_id, class_name: 'Spree::Address',
-                              optional: true
+                              optional: true, dependent: :destroy
     alias_attribute :shipping_address, :ship_address
 
     belongs_to :store, class_name: 'Spree::Store'
 
     with_options dependent: :destroy do
-      has_many :state_changes, as: :stateful
-      has_many :line_items, -> { order(:created_at) }, inverse_of: :order
-      has_many :payments
-      has_many :return_authorizations, inverse_of: :order
-      has_many :adjustments, -> { order(:created_at) }, as: :adjustable
+      has_many :state_changes, as: :stateful, class_name: 'Spree::StateChange'
+      has_many :line_items, -> { order(:created_at) }, inverse_of: :order, class_name: 'Spree::LineItem'
+      has_many :payments, class_name: 'Spree::Payment'
+      has_many :return_authorizations, inverse_of: :order, class_name: 'Spree::ReturnAuthorization'
+      has_many :adjustments, -> { order(:created_at) }, as: :adjustable, class_name: 'Spree::Adjustment'
     end
-    has_many :reimbursements, inverse_of: :order
+    has_many :reimbursements, inverse_of: :order, class_name: 'Spree::Reimbursement'
     has_many :line_item_adjustments, through: :line_items, source: :adjustments
-    has_many :inventory_units, inverse_of: :order
+    has_many :inventory_units, inverse_of: :order, class_name: 'Spree::InventoryUnit'
     has_many :variants, through: :line_items
     has_many :products, through: :variants
     has_many :refunds, through: :payments
@@ -124,7 +104,7 @@ module Spree
     has_many :order_promotions, class_name: 'Spree::OrderPromotion'
     has_many :promotions, through: :order_promotions, class_name: 'Spree::Promotion'
 
-    has_many :shipments, dependent: :destroy, inverse_of: :order do
+    has_many :shipments, class_name: 'Spree::Shipment', dependent: :destroy, inverse_of: :order do
       def states
         pluck(:state).uniq
       end
@@ -148,7 +128,7 @@ module Spree
     before_update :homogenize_line_item_currencies, if: :currency_changed?
 
     with_options presence: true do
-      validates :number, length: { maximum: 32, allow_blank: true }, uniqueness: { allow_blank: true }
+      validates :number, length: { maximum: 32, allow_blank: true }, uniqueness: { allow_blank: true, case_sensitive: false }
       validates :email, length: { maximum: 254, allow_blank: true }, email: { allow_blank: true }, if: :require_email
       validates :item_count, numericality: { greater_than_or_equal_to: 0, less_than: 2**31, only_integer: true, allow_blank: true }
       validates :store
@@ -184,17 +164,6 @@ module Spree
     # that should be called after Order#update
     def self.register_update_hook(hook)
       update_hooks.add(hook)
-    end
-
-    # Use this method in other gems that wish to register their own custom logic
-    # that should be called when determining if two line items are equal.
-    def self.register_line_item_comparison_hook(hook)
-      ActiveSupport::Deprecation.warn(<<-EOS, caller)
-        Order.register_line_item_comparison_hook is deprecated and will be removed in Spree 4.0. Please use
-        `Rails.application.config.spree.line_item_comparison_hooks << hook` instead.
-      EOS
-
-      Rails.application.config.spree.line_item_comparison_hooks << hook
     end
 
     # For compatiblity with Calculator::PriceSack
@@ -265,15 +234,6 @@ module Spree
       @merger ||= Spree::OrderMerger.new(self)
     end
 
-    def clone_billing_address
-      if bill_address && ship_address.nil?
-        self.ship_address = bill_address.clone
-      else
-        ship_address.attributes = bill_address.attributes.except('id', 'updated_at', 'created_at')
-      end
-      true
-    end
-
     def ensure_store_presence
       self.store ||= Spree::Store.default
     end
@@ -286,10 +246,6 @@ module Spree
 
     def all_inventory_units_returned?
       inventory_units.all?(&:returned?)
-    end
-
-    def contents
-      @contents ||= Spree::OrderContents.new(self)
     end
 
     # Associates the specified user with the order.
@@ -315,27 +271,8 @@ module Spree
     def find_line_item_by_variant(variant, options = {})
       line_items.detect do |line_item|
         line_item.variant_id == variant.id &&
-          line_item_options_match(line_item, options)
+          Spree::Dependencies.cart_compare_line_items_service.constantize.new.call(order: self, line_item: line_item, options: options).value
       end
-    end
-
-    # This method enables extensions to participate in the
-    # "Are these line items equal" decision.
-    #
-    # When adding to cart, an extension would send something like:
-    # params[:product_customizations]={...}
-    #
-    # and would provide:
-    #
-    # def product_customizations_match
-    def line_item_options_match(line_item, options)
-      ActiveSupport::Deprecation.warn(<<-EOS, caller)
-        Order#add is deprecated and will be removed in Spree 4.0. Please use
-        Spree::CompareLineItems service instead.
-      EOS
-      return true unless options
-
-      CompareLineItems.new.call(order: self, line_item: line_item, options: options).value
     end
 
     # Creates new tax charges if there are any applicable rates. If prices already
@@ -432,8 +369,8 @@ module Spree
       payment_state == 'paid' || payment_state == 'credit_owed'
     end
 
-    def available_payment_methods
-      @available_payment_methods ||= collect_payment_methods
+    def available_payment_methods(store = nil)
+      @available_payment_methods ||= collect_payment_methods(store)
     end
 
     def insufficient_stock_lines
@@ -540,7 +477,13 @@ module Spree
     def apply_free_shipping_promotions
       Spree::PromotionHandler::FreeShipping.new(self).activate
       shipments.each { |shipment| Spree::Adjustable::AdjustmentsUpdater.update(shipment) }
+      create_shipment_tax_charge!
       update_with_updater!
+    end
+
+    # Applies user promotions when login after filling the cart
+    def apply_unassigned_promotions
+      ::Spree::PromotionHandler::Cart.new(self).activate
     end
 
     # Clean shipments and make order back to address state
@@ -674,6 +617,20 @@ module Spree
       end
     end
 
+    def valid_promotions
+      order_promotions.where(promotion_id: valid_promotion_ids).uniq(&:promotion_id)
+    end
+
+    def valid_promotion_ids
+      all_adjustments.eligible.nonzero.promotion.map { |a| a.source.promotion_id }.uniq
+    end
+
+    def valid_coupon_promotions
+      promotions.
+        where(id: valid_promotion_ids).
+        coupons
+    end
+
     private
 
     def link_by_email
@@ -728,20 +685,12 @@ module Spree
       self.currency ||= store.default_currency || Spree::Config[:currency]
     end
 
-    def set_currency
-      ActiveSupport::Deprecation.warn(<<-DEPRECATION, caller)
-         Spree::Order#set_currency was renamed to Spree::Order#ensure_currency_presence
-         and will be removed in Spree 4.0. Please update your code to avoid problems after update
-      DEPRECATION
-      ensure_currency_presence
-    end
-
     def create_token
       self.token ||= generate_token
     end
 
-    def collect_payment_methods
-      PaymentMethod.available_on_front_end.select { |pm| pm.available_for_order?(self) }
+    def collect_payment_methods(store = nil)
+      PaymentMethod.available_on_front_end.select { |pm| pm.available_for_order?(self) && pm.available_for_store?(store) }
     end
 
     def credit_card_nil_payment?(attributes)

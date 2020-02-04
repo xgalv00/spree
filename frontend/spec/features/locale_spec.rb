@@ -9,20 +9,22 @@ describe 'setting locale', type: :feature do
     Spree::Frontend::Config[:locale] = 'en'
   end
 
-  context 'shopping cart link and page' do
+  context 'cart page' do
     before do
       I18n.backend.store_translations(:fr,
                                       spree: {
-                                        cart: 'Panier',
-                                        shopping_cart: 'Panier'
+                                        cart_page: {
+                                          header: 'Votre panier',
+                                          empty_info: 'Votre panier est vide'
+                                        }
                                       })
     end
 
     it 'is in french' do
       with_locale('fr') do
-        visit spree.root_path
-        click_link 'Panier'
-        expect(page).to have_content('Panier')
+        visit spree.cart_path
+        expect(page).to have_content('Votre panier')
+        expect(page).to have_content('Votre panier est vide')
       end
     end
   end
@@ -40,7 +42,7 @@ describe 'setting locale', type: :feature do
 
     def check_error_text(text)
       %w(firstname lastname address1 city).each do |attr|
-        expect(find("#b#{attr} label.error").text).to eq(text)
+        expect(page).to have_css("#b#{attr} label.error", exact_text: text)
       end
     end
   end

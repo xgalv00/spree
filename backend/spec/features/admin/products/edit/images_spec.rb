@@ -11,13 +11,10 @@ describe 'Product Images', type: :feature, js: true do
     # undefined method `processors' for \"48x48>\
     Spree::Image.styles.symbolize_keys!
     allow(ENV).to receive(:[]).and_call_original
-    allow(ENV).to receive(:[]).with(:SPREE_USE_PAPERCLIP).and_return(true)
   end
 
   context 'uploading, editing, and deleting an image' do
     it 'allows an admin to upload and edit an image for a product' do
-      Spree::Image.attachment_definitions[:attachment].delete :storage if Rails.application.config.use_paperclip
-
       create(:product)
 
       visit spree.admin_products_path
@@ -34,10 +31,11 @@ describe 'Product Images', type: :feature, js: true do
       expect(page).to have_content('successfully updated!')
       expect(page).to have_content('ruby on rails t-shirt')
 
-      spree_accept_alert do
+      accept_confirm do
         click_icon :delete
-        wait_for_ajax
       end
+
+      expect(page).to have_content('successfully removed!')
       expect(page).not_to have_content('ruby on rails t-shirt')
     end
   end
@@ -57,7 +55,7 @@ describe 'Product Images', type: :feature, js: true do
 
       # ensure variant header is displayed
       within('thead') do
-        expect(page.body).to have_content('Variant')
+        expect(page).to have_content('Variant')
       end
 
       # ensure variant header is displayed

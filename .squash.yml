@@ -1,16 +1,8 @@
 deployments:
-  DefaultApp:
+  default:
         filename:
           ./Dockerfile
-        port_forwarding:
-          80:3000
-  Ruby252App:
-        filename:
-          ./Dockerfile-252
-        port_forwarding:
-          80:3000
-  Ruby260App:
-        filename:
-          ./Dockerfile-260
+        vm_size:
+          1GB
         port_forwarding:
           80:3000

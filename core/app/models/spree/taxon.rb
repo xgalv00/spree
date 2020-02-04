@@ -19,7 +19,7 @@ module Spree
     has_many :promotion_rule_taxons, class_name: 'Spree::PromotionRuleTaxon', dependent: :destroy
     has_many :promotion_rules, through: :promotion_rule_taxons, class_name: 'Spree::PromotionRule'
 
-    validates :name, presence: true, uniqueness: { scope: [:parent_id, :taxonomy_id], allow_blank: true }
+    validates :name, presence: true, uniqueness: { scope: [:parent_id, :taxonomy_id], allow_blank: true, case_sensitive: false }
     validates :permalink, uniqueness: { case_sensitive: false }
     validates_associated :icon
     validate :check_for_root, on: :create
@@ -48,13 +48,9 @@ module Spree
       fs
     end
 
-    # Return meta_title if set otherwise generates from root name and/or taxon name
+    # Return meta_title if set otherwise generates from taxon name
     def seo_title
-      if meta_title.blank?
-        root? ? name : "#{root.name} - #{name}"
-      else
-        meta_title
-      end
+      meta_title.blank? ? name : meta_title
     end
 
     # Creates permalink base for friendly_id

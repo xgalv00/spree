@@ -31,6 +31,7 @@ require 'rspec/rails'
 # in ./support/ and its subdirectories.
 Dir["#{File.dirname(__FILE__)}/support/**/*.rb"].each { |f| require f }
 
+require 'capybara-select-2'
 require 'database_cleaner'
 require 'ffaker'
 require 'rspec/retry'
@@ -47,6 +48,7 @@ require 'spree/testing_support/capybara_config'
 require 'spree/testing_support/image_helpers'
 
 require 'spree/core/controller_helpers/strong_parameters'
+require 'webdrivers'
 
 RSpec.configure do |config|
   config.color = true
@@ -62,7 +64,7 @@ RSpec.configure do |config|
   config.use_transactional_fixtures = false
 
   config.before :suite do
-    Capybara.match = :prefer_exact
+    Capybara.match = :smart
     DatabaseCleaner.clean_with :truncation
   end
 
@@ -82,14 +84,6 @@ RSpec.configure do |config|
     reset_spree_preferences
   end
 
-  config.after do
-    # wait_for_ajax sometimes fails so we should clean db first to get rid of false failed specs
-    DatabaseCleaner.clean
-
-    # Ensure js requests finish processing before advancing to the next test
-    wait_for_ajax if RSpec.current_example.metadata[:js]
-  end
-
   config.after(:each, type: :feature) do |example|
     missing_translations = page.body.scan(/translation missing: #{I18n.locale}\.(.*?)[\s<\"&]/)
     if missing_translations.any?
@@ -98,6 +92,11 @@ RSpec.configure do |config|
     end
   end
 
+  config.append_after do
+    DatabaseCleaner.clean
+  end
+
+  config.include CapybaraSelect2
   config.include FactoryBot::Syntax::Methods
 
   config.include Spree::TestingSupport::Preferences
@@ -108,11 +107,6 @@ RSpec.configure do |config|
 
   config.include Spree::Core::ControllerHelpers::StrongParameters, type: :controller
 
-  config.include VersionCake::TestHelpers, type: :controller
-  config.before(:each, type: :controller) do
-    set_request_version('', 1)
-  end
-
   config.verbose_retry = true
   config.display_try_failure_messages = true
 
@@ -122,6 +116,9 @@ RSpec.configure do |config|
 
   config.order = :random
   Kernel.srand config.seed
+
+  config.filter_run_including focus: true unless ENV['CI']
+  config.run_all_when_everything_filtered = true
 end
 
 module Spree

@@ -1,8 +1,5 @@
 require 'spec_helper'
 
-require 'shared_examples/api_v2/base'
-require 'shared_examples/api_v2/current_order'
-
 describe 'API V2 Storefront Checkout Spec', type: :request do
   let(:default_currency) { 'USD' }
   let(:store) { create(:store, default_currency: default_currency) }
@@ -21,7 +18,7 @@ describe 'API V2 Storefront Checkout Spec', type: :request do
       phone: '3014445002',
       zipcode: '20814',
       state_id: state.id,
-      country_id: country.id
+      country_iso: country.iso
     }
   end
 
@@ -259,9 +256,14 @@ describe 'API V2 Storefront Checkout Spec', type: :request do
           order.reload
           expect(order.bill_address).not_to be_nil
           expect(order.ship_address).not_to be_nil
-          address.keys.each do |key|
-            expect(order.bill_address[key]).to eq address[key]
-          end
+          expect(order.bill_address.firstname).to eq address[:firstname]
+          expect(order.bill_address.lastname).to eq address[:lastname]
+          expect(order.bill_address.address1).to eq address[:address1]
+          expect(order.bill_address.city).to eq address[:city]
+          expect(order.bill_address.phone).to eq address[:phone]
+          expect(order.bill_address.zipcode).to eq address[:zipcode]
+          expect(order.bill_address.state_id).to eq address[:state_id]
+          expect(order.bill_address.country.iso).to eq address[:country_iso]
         end
       end
 
@@ -403,7 +405,7 @@ describe 'API V2 Storefront Checkout Spec', type: :request do
         it_behaves_like 'returns 422 HTTP status'
 
         it 'returns an error' do
-          expect(json_response['error']).to eq('Customer E-Mail is invalid')
+          expect(json_response['error']).to eq('Email is invalid')
         end
 
         it 'returns validation errors' do
@@ -471,6 +473,41 @@ describe 'API V2 Storefront Checkout Spec', type: :request do
 
         it_behaves_like 'returns 200 HTTP status'
         it_behaves_like 'valid payload', 300.0
+      end
+
+      context 'with option include' do
+        let!(:payment) { Spree::Payment.all.first }
+
+        context 'payments.source' do
+          let(:execute) { post '/api/v2/storefront/checkout/add_store_credit?include=payments.source', params: params, headers: headers }
+
+          it 'return relationship with store_credit' do
+            expect(json_response['included'][0]).to have_type('store_credit')
+
+            expect(json_response['included'][0]).to have_attribute(:amount).with_value(payment.source.amount.to_s)
+            expect(json_response['included'][0]).to have_attribute(:amount_used).with_value(payment.source.amount_used.to_s)
+            expect(json_response['included'][0]).to have_attribute(:created_at)
+
+            expect(json_response['included'][0]).to have_relationship(:category)
+            expect(json_response['included'][0]).to have_relationship(:store_credit_events)
+            expect(json_response['included'][0]).to have_relationship(:credit_type)
+          end
+        end
+
+        context 'payments.payment_method' do
+          let(:execute) { post '/api/v2/storefront/checkout/add_store_credit?include=payments.payment_method', params: params, headers: headers }
+
+          it 'return relationship with payment_method' do
+            expect(json_response['included'][0]).to have_type('payment_method')
+
+            expect(json_response['included'][0]).to have_attribute(:type).with_value(payment.payment_method.type)
+            expect(json_response['included'][0]).to have_attribute(:name).with_value(payment.payment_method.name)
+            expect(json_response['included'][0]).to have_attribute(:description).with_value(payment.payment_method.description)
+
+            expect(json_response['included'][1]).to have_relationship(:source)
+            expect(json_response['included'][1]).to have_relationship(:payment_method)
+          end
+        end
       end
     end
   end
@@ -570,7 +607,6 @@ describe 'API V2 Storefront Checkout Spec', type: :request do
         expect(json_response['included'][0]).to have_attribute(:display_final_price).with_value(shipping_rate.display_final_price.to_s)
         expect(json_response['included'][0]).to have_attribute(:cost).with_value(shipping_rate.cost.to_s)
         expect(json_response['included'][0]).to have_attribute(:display_cost).with_value(shipping_rate.display_cost.to_s)
-        expect(json_response['included'][0]).to have_attribute(:display_cost).with_value(shipping_rate.display_cost.to_s)
         expect(json_response['included'][0]).to have_attribute(:tax_amount).with_value(shipping_rate.tax_amount.to_s)
         expect(json_response['included'][0]).to have_attribute(:display_tax_amount).with_value(shipping_rate.display_tax_amount.to_s)
         expect(json_response['included'][0]).to have_attribute(:shipping_method_id).with_value(shipping_method.id)
@@ -618,7 +654,7 @@ describe 'API V2 Storefront Checkout Spec', type: :request do
       {
         order: {
           shipments_attributes: {
-            '0' => { selected_shipping_rate_id: shipping_rate_id, id: shipment_id }
+            '0' => { selected_shipping_rate_id: new_selected_shipping_rate_id, id: shipment_id }
           }
         }
       }
@@ -628,6 +664,8 @@ describe 'API V2 Storefront Checkout Spec', type: :request do
       json_response['data'].first['relationships']['shipping_rates']['data'].first['id']
     end
     let(:shipment_id) { json_response['data'].first['id'] }
+    let!(:new_selected_shipping_method) { create(:shipping_method, name: 'Fedex') }
+    let(:new_selected_shipping_rate_id) { new_selected_shipping_method.shipping_rates.last.id }
 
     shared_examples 'transitions through checkout from start to finish' do
       before do
@@ -662,7 +700,7 @@ describe 'API V2 Storefront Checkout Spec', type: :request do
         expect(response.status).to eq(200)
         expect(order.reload.completed_at).not_to be_nil
         expect(order.state).to eq('complete')
-        expect(order.shipments.first.shipping_method).to eq(shipping_method)
+        expect(order.shipments.first.shipping_method).to eq(new_selected_shipping_method)
         expect(order.payments.valid.first.payment_method).to eq(payment_method)
       end
     end

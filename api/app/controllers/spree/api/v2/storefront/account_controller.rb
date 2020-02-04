@@ -3,9 +3,9 @@ module Spree
     module V2
       module Storefront
         class AccountController < ::Spree::Api::V2::BaseController
-          def show
-            raise ActiveRecord::RecordNotFound if spree_current_user.nil?
+          before_action :require_spree_current_user
 
+          def show
             render_serialized_payload { serialize_resource(resource) }
           end
 
@@ -15,16 +15,8 @@ module Spree
             spree_current_user
           end
 
-          def serialize_resource(resource)
-            dependencies[:resource_serializer].new(
-              resource,
-              include: resource_includes,
-              fields: sparse_fields
-            ).serializable_hash
-          end
-
-          def dependencies
-            { resource_serializer: Spree::V2::Storefront::AccountSerializer }
+          def resource_serializer
+            Spree::Api::Dependencies.storefront_user_serializer.constantize
           end
         end
       end

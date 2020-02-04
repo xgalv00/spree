@@ -122,8 +122,6 @@ Spree::Core::Engine.add_routes do
       resources :stock_items, only: [:index, :update, :destroy]
       resources :stores
 
-      resources :tags, only: :index
-
       put '/classifications', to: 'classifications#update', as: :classifications
       get '/taxons/products', to: 'taxons#products', as: :taxon_products
     end
@@ -137,6 +135,8 @@ Spree::Core::Engine.add_routes do
           patch  :set_quantity
           patch  :apply_coupon_code
           delete 'remove_coupon_code/:coupon_code', to: 'cart#remove_coupon_code', as: :cart_remove_coupon_code
+          delete 'remove_coupon_code', to: 'cart#remove_coupon_code', as: :cart_remove_coupon_code_without_code
+          get :estimate_shipping_rates
         end
 
         resource :checkout, controller: :checkout, only: %i[update] do
@@ -151,10 +151,16 @@ Spree::Core::Engine.add_routes do
 
         resource :account, controller: :account, only: %i[show]
 
+        namespace :account do
+          resources :credit_cards, controller: :credit_cards, only: %i[index show]
+          resources :orders, controller: :orders, only: %i[index show]
+        end
+
         resources :countries, only: %i[index]
         get '/countries/:iso', to: 'countries#show', as: :country
+        get '/order_status/:number', to: 'order_status#show', as: :order_status
         resources :products, only: %i[index show]
-        resources :taxons,   only: %i[index show]
+        resources :taxons,   only: %i[index show], id: /.+/
       end
     end
 

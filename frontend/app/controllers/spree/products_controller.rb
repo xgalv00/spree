@@ -1,27 +1,38 @@
 module Spree
   class ProductsController < Spree::StoreController
-    before_action :load_product, only: :show
-    before_action :load_taxon, only: :index
+    include Spree::ProductsHelper
 
-    helper 'spree/taxons'
+    before_action :load_product, only: [:show, :related]
+    before_action :load_taxon, only: :index
 
     respond_to :html
 
     def index
       @searcher = build_searcher(params.merge(include_images: true))
       @products = @searcher.retrieve_products
-      @products = @products.includes(:possible_promotions) if @products.respond_to?(:includes)
-      @taxonomies = Spree::Taxonomy.includes(root: :children)
     end
 
     def show
-      @variants = @product.variants_including_master.
-                  spree_base_scopes.
-                  active(current_currency).
-                  includes([:option_values, :images])
-      @product_properties = @product.product_properties.includes(:property)
-      @taxon = params[:taxon_id].present? ? Spree::Taxon.find(params[:taxon_id]) : @product.taxons.first
       redirect_if_legacy_path
+
+      @taxon = params[:taxon_id].present? ? Spree::Taxon.find(params[:taxon_id]) : @product.taxons.first
+
+      if stale?(etag: product_etag, last_modified: @product.updated_at.utc, public: true)
+        @product_summary = Spree::ProductSummaryPresenter.new(@product).call
+        @product_properties = @product.product_properties.includes(:property)
+        load_variants
+        @product_images = product_images(@product, @variants)
+      end
+    end
+
+    def related
+      @related_products = related_products
+
+      if @related_products.any?
+        render template: 'spree/products/related', layout: false
+      else
+        head :no_content
+      end
     end
 
     private
@@ -41,12 +52,25 @@ module Spree
                     Product.active(current_currency)
                   end
 
-      @product = @products.includes(:variants_including_master, variant_images: :viewable).
-                 friendly.distinct(false).find(params[:id])
+      @product = @products.includes(:master).
+                 friendly.
+                 find(params[:id])
     end
 
     def load_taxon
       @taxon = Spree::Taxon.find(params[:taxon]) if params[:taxon].present?
+    end
+
+    def load_variants
+      @variants = @product.
+                  variants_including_master.
+                  spree_base_scopes.
+                  active(current_currency).
+                  includes(
+                    :default_price,
+                    option_values: [:option_value_variants],
+                    images: { attachment_attachment: :blob }
+                  )
     end
 
     def redirect_if_legacy_path
@@ -57,6 +81,16 @@ module Spree
         params.permit!
         redirect_to url_for(params), status: :moved_permanently
       end
+    end
+
+    def product_etag
+      [
+        store_etag,
+        @product,
+        @taxon,
+        @product.possible_promotion_ids,
+        @product.possible_promotions.maximum(:updated_at),
+      ]
     end
   end
 end

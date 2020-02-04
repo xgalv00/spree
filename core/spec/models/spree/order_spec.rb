@@ -492,8 +492,8 @@ describe Spree::Order, type: :model do
 
   # Regression test for #4199
   context '#available_payment_methods' do
-    let(:ok_method) { double :payment_method, available_for_order?: true }
-    let(:no_method) { double :payment_method, available_for_order?: false }
+    let(:ok_method) { double :payment_method, available_for_order?: true, available_for_store?: true }
+    let(:no_method) { double :payment_method, available_for_order?: false, available_for_store?: true }
     let(:methods) { [ok_method, no_method] }
 
     it 'includes frontend payment methods' do
@@ -520,6 +520,7 @@ describe Spree::Order, type: :model do
 
     it 'does not include a payment method that is not suitable for this order' do
       allow(Spree::PaymentMethod).to receive(:available_on_front_end).and_return(methods)
+
       expect(order.available_payment_methods).to match_array [ok_method]
     end
   end
@@ -532,6 +533,8 @@ describe Spree::Order, type: :model do
       expect(handler).to receive(:activate)
 
       expect(Spree::Adjustable::AdjustmentsUpdater).to receive(:update).with(shipment)
+
+      expect(Spree::TaxRate).to receive(:adjust).with(order, [shipment])
 
       expect(order.updater).to receive(:update)
       order.apply_free_shipping_promotions
@@ -571,12 +574,13 @@ describe Spree::Order, type: :model do
 
       it 'matches line item when options match' do
         allow(order).to receive(:foos_match).and_return(true)
-        expect(order.line_item_options_match(@line_items.first, foos: { bar: :zoo })).to be true
+        expect(Spree::Dependencies.cart_compare_line_items_service.constantize.new.call(order: order, line_item: @line_items.first, options: { foos: { bar: :zoo } }).value).to be true
+
       end
 
       it 'does not match line item without options' do
         allow(order).to receive(:foos_match).and_return(false)
-        expect(order.line_item_options_match(@line_items.first, {})).to be false
+        expect(Spree::Dependencies.cart_compare_line_items_service.constantize.new.call(order: order, line_item: @line_items.first, options: {}).value).to be false
       end
     end
   end
@@ -769,7 +773,7 @@ describe Spree::Order, type: :model do
                            create(:line_item, price: 1.0, quantity: 1)]
     end
 
-    it 'returns the correct lum sum of items' do
+    it 'returns the correct sum of items' do
       expect(@order.amount).to eq(3.0)
     end
   end
@@ -1143,6 +1147,69 @@ describe Spree::Order, type: :model do
       end
 
       it { expect(order.shipping_eq_billing_address?).to eq(true) }
+    end
+  end
+
+  describe '#destroying order will trigger ship and bill addresses destroy' do
+    let!(:order) { create(:order_with_line_items) }
+
+    it { expect { order.destroy }.to change { Spree::Address.count }.by(-2) }
+  end
+
+  describe '#valid_promotions' do
+    def create_adjustment(label, order_or_line_item, amount, source)
+      create(:adjustment,
+              order: order,
+              adjustable: order_or_line_item,
+              source: source,
+              amount: amount,
+              state: 'closed',
+              label: label,
+              mandatory: false)
+    end
+
+    let!(:order) { create(:order_with_line_items, line_items_count: 10) }
+    let(:line_item) { order.line_items.first }
+
+    let(:zero_promo) { create :promotion_with_order_adjustment, weighted_order_adjustment_amount: 0, starts_at: Time.now, code: 'Zero', id: 1 }
+    let(:order_promo) { create :promotion_with_order_adjustment, weighted_order_adjustment_amount: 10, starts_at: Time.now, code: 'Order1', id: 2 }
+    let(:line_item_promo) { create :promotion_with_item_adjustment, adjustment_rate: 10, starts_at: Time.now, code: 'LineItem', id: 3 }
+
+    let(:calculator) { Spree::Calculator::FlatRate.new(preferred_amount: 10) }
+    let(:source) { Spree::Promotion::Actions::CreateItemAdjustments.create(calculator: calculator, promotion_id: order_promo.id) }
+    let(:zero_calculator) { Spree::Calculator::FlatRate.new(preferred_amount: 0) }
+    let(:zero_source) { Spree::Promotion::Actions::CreateItemAdjustments.create calculator: zero_calculator, promotion_id: zero_promo.id }
+    let(:line_item_source) { Spree::Promotion::Actions::CreateItemAdjustments.create calculator: calculator, promotion_id: line_item_promo.id }
+
+    context 'without promotions' do
+      it 'expect to return an empty array' do
+        expect(order.valid_promotions).to eq []
+      end
+    end
+
+    context 'with promotions' do
+      let!(:zero_adjustment) { create_adjustment('Zero adjustment', order, -0, zero_source) }
+      let!(:adjustment) { create_adjustment('Adjustment', order, -50, source) }
+      let!(:non_eligible_adjustment) { create_adjustment('Non Eligible Adjustment', order, -100, source) }
+      let!(:line_item_adjustment) { create_adjustment('Adjustment', line_item, -200, line_item_source) }
+
+      before do
+        promotions = [zero_promo, order_promo, line_item_promo]
+        promotions.each do |promotion|
+          promotion.orders << order
+          promotion.actions << Spree::Promotion::Actions::CreateAdjustment.new
+          promotion.rules << Spree::Promotion::Rules::FirstOrder.new
+          promotion.save!
+        end
+
+        order.all_adjustments.where(amount: [0, -50, -200]).each do |adjustment|
+          adjustment.update_column(:eligible, true)
+        end
+      end
+
+      it 'expect return valid order promotions' do
+        expect(order.valid_promotions).to eq(order.order_promotions.where(promotion_id: [2, 3]))
+      end
     end
   end
 end

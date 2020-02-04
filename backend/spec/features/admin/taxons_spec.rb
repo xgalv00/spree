@@ -37,17 +37,18 @@ describe 'Taxonomies and taxons', type: :feature do
 
     find('.product').hover
     find('.product .dropdown-toggle').click
-    click_link 'Delete From Taxon'
-    wait_for_ajax
 
-    visit current_path
+    click_link 'Delete From Taxon'
+
+    expect(page).not_to have_css('.product')
+
+    refresh
     select_clothing_from_select2
 
     expect(page).to have_content('No results')
   end
 
   def select_clothing_from_select2
-    targetted_select2_search 'Clothing', from: '#s2id_taxon_id'
-    wait_for_ajax
+    select2 'Clothing', css: '.taxon-products-view', search: true
   end
 end

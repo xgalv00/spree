@@ -12,10 +12,12 @@ module Spree
 
     # we're not freezing this on purpose so developers can extend and manage
     # those attributes depending of the logic of their applications
-    EXCLUDED_KEYS_FOR_COMPARISION = %w(id updated_at created_at)
+    ADDRESS_FIELDS = %w(firstname lastname company address1 address2 city state zipcode country phone)
+    EXCLUDED_KEYS_FOR_COMPARISION = %w(id updated_at created_at deleted_at user_id)
 
     belongs_to :country, class_name: 'Spree::Country'
     belongs_to :state, class_name: 'Spree::State', optional: true
+    belongs_to :user, class_name: Spree.user_class.name, optional: true
 
     has_many :shipments, inverse_of: :address
 
@@ -29,8 +31,8 @@ module Spree
 
     validate :state_validate, :postal_code_validate
 
-    delegate :name, :iso3, to: :country, prefix: true
-    delegate :abbr,        to: :state,   prefix: true, allow_nil: true
+    delegate :name, :iso3, :iso, :iso_name, to: :country, prefix: true
+    delegate :abbr, to: :state, prefix: true, allow_nil: true
 
     alias_attribute :first_name, :firstname
     alias_attribute :last_name, :lastname
@@ -49,6 +51,12 @@ module Spree
       end
     end
 
+    def self.required_fields
+      Spree::Address.validators.map do |v|
+        v.is_a?(ActiveModel::Validations::PresenceValidator) ? v.attributes : []
+      end.flatten
+    end
+
     def full_name
       "#{firstname} #{lastname}".strip
     end
@@ -57,24 +65,19 @@ module Spree
       state.try(:abbr) || state.try(:name) || state_name
     end
 
-    def same_as?(other)
-      ActiveSupport::Deprecation.warn(<<-EOS, caller)
-        Address#same_as? is deprecated and will be removed in Spree 4.0. Please use Address#== instead"
-      EOS
-
-      self == other
-    end
-
-    def same_as(other)
-      ActiveSupport::Deprecation.warn(<<-EOS, caller)
-        Address#same_as is deprecated and will be removed in Spree 4.0. Please use Address#== instead"
-      EOS
-
-      self == other
+    def state_name_text
+      state_name.present? ? state_name : state&.name
     end
 
     def to_s
-      "#{full_name}: #{address1}"
+      [
+        full_name,
+        company,
+        address1,
+        address2,
+        "#{city}, #{state_text} #{zipcode}",
+        country.to_s
+      ].reject(&:blank?).map { |attribute| ERB::Util.html_escape(attribute) }.join('<br/>')
     end
 
     def clone
@@ -115,6 +118,28 @@ module Spree
 
     def require_zipcode?
       country ? country.zipcode_required? : true
+    end
+
+    def editable?
+      new_record? || (shipments.empty? && !Order.complete.where('bill_address_id = ? OR ship_address_id = ?', id, id).exists?)
+    end
+
+    def can_be_deleted?
+      shipments.empty? && !Order.where('bill_address_id = ? OR ship_address_id = ?', id, id).exists?
+    end
+
+    def check
+      attrs = attributes.except('id', 'updated_at', 'created_at')
+      the_same_address = user&.addresses&.find_by(attrs)
+      the_same_address || self
+    end
+
+    def destroy
+      if can_be_deleted?
+        super
+      else
+        update_column :deleted_at, Time.current
+      end
     end
 
     private

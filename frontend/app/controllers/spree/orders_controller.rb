@@ -1,12 +1,13 @@
 module Spree
   class OrdersController < Spree::StoreController
+    before_action :set_current_order
     before_action :check_authorization
+
     helper 'spree/products', 'spree/orders'
 
     respond_to :html
 
     before_action :assign_order_with_lock, only: :update
-    skip_before_action :verify_authenticity_token, only: [:populate]
 
     def show
       @order = Order.includes(line_items: [variant: [:option_values, :images, :product]], bill_address: :state, ship_address: :state).find_by!(number: params[:id])
@@ -33,60 +34,9 @@ module Spree
     # Shows the current incomplete order from the session
     def edit
       @order = current_order || Order.incomplete.
-               includes(line_items: [variant: [:images, :option_values, :product]]).
+               includes(line_items: [variant: [:images, :product, option_values: :option_type]]).
                find_or_initialize_by(token: cookies.signed[:token])
       associate_user
-    end
-
-    # Adds a new item to the order (creating a new order if none already exists)
-    def populate
-      ActiveSupport::Deprecation.warn(<<-DEPRECATION, caller)
-        OrdersController#populate is deprecated and will be removed in Spree 4.0.
-        Please use `/api/v2/storefront/cart/add_item` endpoint instead.
-        See documentation: https://github.com/spree/spree/blob/master/api/docs/v2/storefront/index.yaml#L42
-      DEPRECATION
-
-      order    = current_order(create_order_if_necessary: true)
-      variant  = Spree::Variant.find(params[:variant_id])
-      quantity = params[:quantity].to_i
-      options  = params[:options] || {}
-
-      # 2,147,483,647 is crazy. See issue #2695.
-      if quantity.between?(1, 2_147_483_647)
-        begin
-          result = Spree::Cart::AddItem.call(order: order, variant: variant, quantity: quantity, options: options)
-          if result.failure?
-            error = result.value.errors.full_messages.join(', ')
-          else
-            order.update_line_item_prices!
-            order.create_tax_charge!
-            order.update_with_updater!
-          end
-        rescue ActiveRecord::RecordInvalid => e
-          error = e.record.errors.full_messages.join(', ')
-        end
-      else
-        error = Spree.t(:please_enter_reasonable_quantity)
-      end
-
-      if error
-        flash[:error] = error
-        redirect_back_or_default(spree.root_path)
-      else
-        respond_with(order) do |format|
-          format.html { redirect_to(cart_path(variant_id: variant.id)) }
-        end
-      end
-    end
-
-    def populate_redirect
-      ActiveSupport::Deprecation.warn(<<-DEPRECATION, caller)
-        OrdersController#populate is deprecated and will be removed in Spree 4.0.
-        Please use `/api/v2/storefront/cart/add_item` endpoint instead.
-        See documentation: https://github.com/spree/spree/blob/master/api/docs/v2/storefront/index.yaml#L42
-      DEPRECATION
-      flash[:error] = Spree.t(:populate_get_error)
-      redirect_to cart_path
     end
 
     def empty
@@ -132,6 +82,10 @@ module Spree
         flash[:error] = Spree.t(:order_not_found)
         redirect_to root_path and return
       end
+    end
+
+    def cart_add_item_service
+      Spree::Dependencies.cart_add_item_service.constantize
     end
   end
 end

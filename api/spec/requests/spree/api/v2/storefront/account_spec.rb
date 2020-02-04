@@ -1,5 +1,4 @@
 require 'spec_helper'
-require 'shared_examples/api_v2/base'
 
 describe 'Storefront API v2 Account spec', type: :request do
   include_context 'API v2 tokens'
@@ -53,7 +52,7 @@ describe 'Storefront API v2 Account spec', type: :request do
     context 'as a guest user' do
       let(:headers) { {} }
 
-      it_behaves_like 'returns 404 HTTP status'
+      it_behaves_like 'returns 403 HTTP status'
     end
   end
 end

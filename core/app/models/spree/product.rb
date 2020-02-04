@@ -21,7 +21,8 @@
 module Spree
   class Product < Spree::Base
     extend FriendlyId
-    include ActsAsTaggable
+    include Spree::ProductScopes
+
     friendly_id :slug_candidates, use: :history
 
     acts_as_paranoid
@@ -100,7 +101,7 @@ module Spree
       validates :price, if: proc { Spree::Config[:require_master_price] }
     end
 
-    validates :slug, presence: true, uniqueness: { allow_blank: true }
+    validates :slug, presence: true, uniqueness: { allow_blank: true, case_sensitive: false }
     validate :discontinue_on_must_be_later_than_available_on, if: -> { available_on && discontinue_on }
 
     attr_accessor :option_values_hash
@@ -238,9 +239,7 @@ module Spree
     # values should not be displayed to frontend users. Otherwise it breaks the
     # idea of having variants
     def variants_and_option_values(current_currency = nil)
-      variants.includes(:option_values).active(current_currency).select do |variant|
-        variant.option_values.any?
-      end
+      variants.active(current_currency).joins(:option_value_variants)
     end
 
     def empty_option_values?
@@ -283,7 +282,10 @@ module Spree
     end
 
     def category
-      taxons.joins(:taxonomy).find_by(spree_taxonomies: { name: Spree.t(:taxonomy_categories_name) })
+      taxons.joins(:taxonomy).
+        where(spree_taxonomies: { name: Spree.t(:taxonomy_categories_name) }).
+        order(depth: :desc).
+        first
     end
 
     private
@@ -432,5 +434,3 @@ module Spree
     end
   end
 end
-
-require_dependency 'spree/product/scopes'

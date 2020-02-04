@@ -4,27 +4,51 @@ module Spree
       class BaseController < ActionController::API
         include CanCan::ControllerAdditions
         include Spree::Core::ControllerHelpers::StrongParameters
+        include Spree::Core::ControllerHelpers::Store
         rescue_from ActiveRecord::RecordNotFound, with: :record_not_found
         rescue_from CanCan::AccessDenied, with: :access_denied
 
+        def content_type
+          Spree::Api::Config[:api_v2_content_type]
+        end
+
         private
 
+        def serialize_collection(collection)
+          collection_serializer.new(
+            collection,
+            collection_options(collection)
+          ).serializable_hash
+        end
+
+        def serialize_resource(resource)
+          resource_serializer.new(
+            resource,
+            include: resource_includes,
+            fields: sparse_fields
+          ).serializable_hash
+        end
+
+        def paginated_collection
+          collection_paginator.new(sorted_collection, params).call
+        end
+
+        def collection_paginator
+          Spree::Api::Dependencies.storefront_collection_paginator.constantize
+        end
+
         def render_serialized_payload(status = 200)
-          render json: yield, status: status
+          render json: yield, status: status, content_type: content_type
         rescue ArgumentError => exception
           render_error_payload(exception.message, 400)
         end
 
         def render_error_payload(error, status = 422)
           if error.is_a?(Struct)
-            render json: { error: error.to_s, errors: error.to_h }, status: status
+            render json: { error: error.to_s, errors: error.to_h }, status: status, content_type: content_type
           elsif error.is_a?(String)
-            render json: { error: error }, status: status
+            render json: { error: error }, status: status, content_type: content_type
           end
-        end
-
-        def spree_current_store
-          @spree_current_store ||= Spree::Store.current(request.env['SERVER_NAME'])
         end
 
         def spree_current_user
@@ -35,26 +59,13 @@ module Spree
           authorize!(action, subject, *args)
         end
 
+        def require_spree_current_user
+          raise CanCan::AccessDenied if spree_current_user.nil?
+        end
+
         # Needs to be overriden so that we use Spree's Ability rather than anyone else's.
         def current_ability
-          @current_ability ||= Spree::Ability.new(spree_current_user)
-        end
-
-        def order_token
-          request.headers['X-Spree-Order-Token'] || params[:order_token]
-        end
-
-        def spree_current_order
-          @spree_current_order ||= find_spree_current_order
-        end
-
-        def find_spree_current_order
-          Spree::Orders::FindCurrent.new.execute(
-            store: spree_current_store,
-            user: spree_current_user,
-            token: order_token,
-            currency: current_currency
-          )
+          @current_ability ||= Spree::Dependencies.ability_class.constantize.new(spree_current_user)
         end
 
         def request_includes
@@ -88,10 +99,6 @@ module Spree
             select { |_, v| v.is_a?(String) }.
             each { |type, values| fields[type.intern] = values.split(',').map(&:intern) }
           fields.presence
-        end
-
-        def current_currency
-          spree_current_store.default_currency || Spree::Config[:currency]
         end
 
         def record_not_found

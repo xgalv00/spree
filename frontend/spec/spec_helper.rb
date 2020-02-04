@@ -27,12 +27,7 @@ end
 require 'rspec/rails'
 require 'ffaker'
 
-# Requires supporting files with custom matchers and macros, etc,
-# in ./support/ and its subdirectories.
-Dir["#{File.dirname(__FILE__)}/support/**/*.rb"].each { |f| require f }
-
 require 'database_cleaner'
-require 'rspec/retry'
 
 require 'spree/testing_support/i18n' if ENV['CHECK_TRANSLATIONS']
 
@@ -47,6 +42,13 @@ require 'spree/testing_support/order_walkthrough'
 require 'spree/testing_support/caching'
 require 'spree/testing_support/capybara_config'
 require 'spree/testing_support/image_helpers'
+require 'webdrivers'
+
+# Requires supporting files with custom matchers and macros, etc,
+# in ./support/ and its subdirectories.
+Dir["#{File.dirname(__FILE__)}/support/**/*.rb"].each { |f| require f }
+
+Rails.application.routes.default_url_options[:host] = 'example.com'
 
 RSpec.configure do |config|
   config.color = true
@@ -87,10 +89,10 @@ RSpec.configure do |config|
     ApplicationRecord.connection.increment_open_transactions if ApplicationRecord.connection.open_transactions < 0
     DatabaseCleaner.start
     reset_spree_preferences
-  end
 
-  config.after do
-    DatabaseCleaner.clean
+    create(:store, default: true)
+    create(:taxon, permalink: 'trending')
+    create(:taxon, permalink: 'bestsellers')
   end
 
   config.after(:each, type: :feature) do |example|
@@ -99,6 +101,10 @@ RSpec.configure do |config|
       puts "Found missing translations: #{missing_translations.inspect}"
       puts "In spec: #{example.location}"
     end
+  end
+
+  config.append_after do
+    DatabaseCleaner.clean
   end
 
   config.include FactoryBot::Syntax::Methods
@@ -112,10 +118,8 @@ RSpec.configure do |config|
   config.order = :random
   Kernel.srand config.seed
 
-  config.verbose_retry = true
   config.display_try_failure_messages = true
 
-  config.around :each, type: :feature do |ex|
-    ex.run_with_retry retry: 3
-  end
+  config.filter_run_including focus: true unless ENV['CI']
+  config.run_all_when_everything_filtered = true
 end

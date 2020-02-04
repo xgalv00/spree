@@ -48,7 +48,7 @@ module Spree
       validates :cost_price
       validates :price
     end
-    validates :sku, uniqueness: { conditions: -> { where(deleted_at: nil) } }, allow_blank: true
+    validates :sku, uniqueness: { conditions: -> { where(deleted_at: nil) }, case_sensitive: false }, allow_blank: true
 
     after_create :create_stock_items
     after_create :set_master_out_of_stock, unless: :is_master?
@@ -81,7 +81,7 @@ module Spree
       )
     end
 
-    scope :not_deleted, -> { where("#{Variant.quoted_table_name}.deleted_at IS NULL") }
+    scope :not_deleted, -> { where("#{Spree::Variant.quoted_table_name}.deleted_at IS NULL") }
 
     scope :for_currency_and_available_price_amount, ->(currency = nil) do
       currency ||= Spree::Config[:currency]
@@ -92,7 +92,6 @@ module Spree
       not_discontinued.not_deleted.
         for_currency_and_available_price_amount(currency)
     end
-
     LOCALIZED_NUMBERS = %w(cost_price weight depth width height)
 
     LOCALIZED_NUMBERS.each do |m|
@@ -112,20 +111,12 @@ module Spree
       if self[:tax_category_id].nil?
         product.tax_category
       else
-        TaxCategory.find(self[:tax_category_id])
+        Spree::TaxCategory.find(self[:tax_category_id])
       end
     end
 
     def options_text
-      values = option_values.sort do |a, b|
-        a.option_type.position <=> b.option_type.position
-      end
-
-      values.to_a.map! do |ov|
-        "#{ov.option_type.presentation}: #{ov.presentation}"
-      end
-
-      values.to_sentence(words_connector: ', ', two_words_connector: ', ')
+      Spree::Variants::OptionsPresenter.new(self).to_sentence
     end
 
     # Default to master name

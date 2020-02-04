@@ -17,7 +17,10 @@ describe 'Product Variants', type: :feature, js: true do
     end
 
     it 'allows admin to create a variant if there are option types' do
-      click_link 'Option Types'
+      within_row(1) { click_icon :edit }
+
+      within('#sidebar') { click_link 'Variants' }
+      click_link 'Option Values'
       click_link 'new_option_type_link'
       fill_in 'option_type_name', with: 'shirt colors'
       fill_in 'option_type_presentation', with: 'colors'
@@ -32,14 +35,15 @@ describe 'Product Variants', type: :feature, js: true do
       visit spree.admin_products_path
       within_row(1) { click_icon :edit }
 
-      select2_search 'shirt', from: 'Option Types'
+      select2 'shirt', from: 'Option Types'
+      wait_for { !page.has_button?('Update') }
       click_button 'Update'
       expect(page).to have_content('successfully updated!')
 
       within('#sidebar') { click_link 'Variants' }
       click_link 'New Variant'
 
-      targetted_select2 'black', from: '#s2id_variant_option_value_ids'
+      select2 'black', from: 'Colors'
       fill_in 'variant_sku', with: 'A100'
       click_button 'Create'
       expect(page).to have_content('successfully created!')

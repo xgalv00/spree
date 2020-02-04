@@ -16,11 +16,11 @@ module Spree
           private
 
           def serialize_collection(collection)
-            dependencies[:collection_serializer].new(collection).serializable_hash
+            collection_serializer.new(collection).serializable_hash
           end
 
           def serialize_resource(resource)
-            dependencies[:resource_serializer].new(
+            resource_serializer.new(
               resource,
               include: resource_includes,
               fields: sparse_fields,
@@ -29,26 +29,31 @@ module Spree
           end
 
           def collection
-            dependencies[:collection_finder].new(scope, params).call
+            collection_finder.new(scope, params).call
           end
 
           def resource
             return scope.default if params[:iso] == 'default'
 
             scope.find_by(iso: params[:iso]&.upcase) ||
+              scope.find_by(id: params[:iso]&.upcase) ||
               scope.find_by(iso3: params[:iso]&.upcase)
           end
 
-          def dependencies
-            {
-              collection_serializer: Spree::V2::Storefront::CountrySerializer,
-              resource_serializer: Spree::V2::Storefront::CountrySerializer,
-              collection_finder: Spree::Countries::Find
-            }
+          def resource_serializer
+            Spree::Api::Dependencies.storefront_country_serializer.constantize
+          end
+
+          def collection_serializer
+            Spree::Api::Dependencies.storefront_country_serializer.constantize
+          end
+
+          def collection_finder
+            Spree::Api::Dependencies.storefront_country_finder.constantize
           end
 
           def scope
-            Spree::Country.accessible_by(current_ability, :read)
+            Spree::Country.accessible_by(current_ability, :show)
           end
         end
       end
